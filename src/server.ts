@@ -16,6 +16,7 @@ import { connectDatabase } from './config/database';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 import { SchedulerService } from './services/scheduler.service';
+import { SeedService } from './services/seed.service';
 import {
   configureHelmet,
   configureCORS,
@@ -131,6 +132,9 @@ const startServer = async () => {
         // Server will start and show actual errors if tables are missing
       }
     }
+    
+    // Run initial seed if no admin exists (safe to run multiple times)
+    await SeedService.runInitialSeed();
     
     // Start scheduled tasks (subscription expiration updates, etc.)
     await SchedulerService.start();
