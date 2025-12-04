@@ -113,6 +113,25 @@ const startServer = async () => {
     // Connect to database
     await connectDatabase();
     
+    // Run database migrations in production
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        logger.info('Running database migrations...');
+        const { execSync } = require('child_process');
+        execSync('npx prisma migrate deploy', { 
+          stdio: 'inherit',
+          env: { ...process.env }
+        });
+        logger.info('Database migrations completed successfully');
+      } catch (migrationError: any) {
+        logger.warn('Database migration warning', { 
+          error: migrationError?.message || String(migrationError) 
+        });
+        // Don't exit - migrations might have already been applied
+        // Server will start and show actual errors if tables are missing
+      }
+    }
+    
     // Start scheduled tasks (subscription expiration updates, etc.)
     await SchedulerService.start();
     
