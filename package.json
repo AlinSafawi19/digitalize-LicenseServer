@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "nodemon --exec ts-node src/server.ts",
     "build": "prisma generate && tsc",
+    "prestart": "npm run db:migrate:deploy",
     "start": "node dist/src/server.js",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts",
