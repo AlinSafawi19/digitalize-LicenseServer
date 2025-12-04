@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model License {
+  id              Int            @id @default(autoincrement())
+  licenseKey      String         @unique
+  customerName    String?
+  customerEmail   String?
+  purchaseDate    DateTime       @default(now())
+  initialPrice    Decimal        @default(350.00) @db.Decimal(10, 2)
+  pricePerUser    Decimal        @default(25.00) @db.Decimal(10, 2)
+  status          String         @default("active")
+  isFreeTrial     Boolean        @default(false)
+  freeTrialEndDate DateTime?
+  userCount       Int            @default(0)
+  userLimit       Int            @default(2)
+  version         String         @default("grocery")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  locationName    String?
+  locationAddress String?
+  startDate       DateTime?
+  endDate         DateTime?
+  activations     Activation[]
+  payments        Payment[]
+  subscriptions   Subscription[]
+
+  @@index([licenseKey])
+  @@index([status])
+  @@index([customerEmail])
+  @@index([customerName])
+  @@index([locationName])
+  @@index([createdAt])
+  @@index([purchaseDate])
+  @@index([isFreeTrial])
+  @@index([freeTrialEndDate])
+  @@index([startDate])
+  @@index([endDate])
+  // Performance optimization: Composite indexes for common query patterns
+  @@index([status, isFreeTrial]) // For filtering by status and free trial together
+  @@index([customerEmail, locationName]) // For duplicate license check (case-insensitive search)
+}
+
+model Activation {
+  id             Int       @id @default(autoincrement())
+  licenseId      Int
+  hardwareId     String
+  machineName    String?
+  activatedAt    DateTime  @default(now())
+  lastValidation DateTime?
+  isActive       Boolean   @default(true)
+  license        License   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@unique([licenseId, hardwareId])
+  @@index([hardwareId])
+  @@index([licenseId])
+  @@index([isActive])
+  @@index([activatedAt])
+  // Performance optimization: Composite indexes for common query patterns
+  @@index([licenseId, isActive]) // For finding active activations for a license
+  @@index([activatedAt, isActive]) // For recent activity queries filtering by date and active status
+}
+
+model Subscription {
+  id             Int       @id @default(autoincrement())
+  licenseId      Int
+  startDate      DateTime
+  endDate        DateTime
+  annualFee      Decimal   @default(50.00) @db.Decimal(10, 2)
+  status         String    @default("active")
+  gracePeriodEnd DateTime?
+  createdAt      DateTime  @default(now())
+  license        License   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@index([licenseId, endDate])
+  @@index([licenseId]) // Performance optimization: For finding all subscriptions for a license
+  @@index([status])
+  @@index([endDate])
+  @@index([startDate])
+  @@index([createdAt])
+  // Performance optimization: Composite index for common query pattern
+  // Used for queries filtering by status and endDate (e.g., active subscriptions expiring soon)
+  @@index([status, endDate])
+}
+
+model Payment {
+  id                   Int      @id @default(autoincrement())
+  licenseId            Int
+  amount               Decimal  @db.Decimal(10, 2)
+  paymentDate          DateTime @default(now())
+  isAnnualSubscription Boolean  @default(false)
+  paymentType          String   @default("initial") // "initial", "annual", "user"
+  createdAt            DateTime @default(now())
+  license              License  @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@index([licenseId])
+  @@index([paymentDate])
+  @@index([isAnnualSubscription])
+  @@index([paymentType])
+  @@index([createdAt])
+  // Performance optimization: Composite indexes for common query patterns
+  @@index([licenseId, paymentType]) // For filtering payments by license and type
+  @@index([paymentDate, isAnnualSubscription]) // For revenue queries filtering by date and subscription type
+}
+
+model Admin {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String
+  isActive     Boolean   @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([username])
+  @@index([email])
+}
