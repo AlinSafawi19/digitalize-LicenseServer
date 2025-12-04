@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "License" ADD COLUMN     "userCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "userLimit" INTEGER NOT NULL DEFAULT 2;
