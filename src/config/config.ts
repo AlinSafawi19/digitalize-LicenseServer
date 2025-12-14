@@ -23,15 +23,14 @@ export const config = {
   freeTrialDays: parseInt(process.env.FREE_TRIAL_DAYS || '10', 10),
   cacheValidityDays: parseInt(process.env.CACHE_VALIDITY_DAYS || '14', 10),
 
-  // Email Settings
-  emailEnabled: process.env.EMAIL_ENABLED === 'true',
-  smtpHost: process.env.SMTP_HOST || '',
-  smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
-  smtpSecure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587
-  smtpUser: process.env.SMTP_USER || '',
-  smtpPassword: process.env.SMTP_PASSWORD || '',
-  smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER || '',
-  logoUrl: process.env.LOGO_URL || '', // URL to hosted logo image (PNG/JPG recommended for email)
+  // WhatsApp Settings
+  whatsappEnabled: process.env.WHATSAPP_ENABLED === 'true',
+  whatsappApiUrl: process.env.WHATSAPP_API_URL || '',
+  whatsappApiKey: process.env.WHATSAPP_API_KEY || '',
+  whatsappFromNumber: process.env.WHATSAPP_FROM_NUMBER || '',
+  // For Twilio integration (example)
+  whatsappAccountSid: process.env.WHATSAPP_ACCOUNT_SID || '',
+  whatsappAuthToken: process.env.WHATSAPP_AUTH_TOKEN || '',
 };
 
 // Validate required environment variables

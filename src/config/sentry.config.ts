@@ -73,7 +73,7 @@ export function captureMessage(message: string, level: 'info' | 'warning' | 'err
 /**
  * Set user context for Sentry
  */
-export function setSentryUser(user: { id: number | string; username?: string; email?: string }): void {
+export function setSentryUser(user: { id: number | string; username?: string; phone?: string }): void {
   if (!isSentryInitialized()) {
     return;
   }
@@ -82,7 +82,7 @@ export function setSentryUser(user: { id: number | string; username?: string; em
     Sentry.setUser({
       id: user.id.toString(),
       username: user.username,
-      email: user.email,
+      phone: user.phone,
     });
   } catch (err) {
     // Silently fail if Sentry is not available

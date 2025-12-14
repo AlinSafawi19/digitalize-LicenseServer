@@ -119,10 +119,10 @@ const swaggerDefinition = {
             nullable: true,
             example: 'John Doe',
           },
-          customerEmail: {
+          customerPhone: {
             type: 'string',
             nullable: true,
-            example: 'john.doe@example.com',
+            example: '+1234567890',
           },
           status: {
             type: 'string',
@@ -188,9 +188,9 @@ const swaggerDefinition = {
             type: 'string',
             example: 'admin',
           },
-          email: {
+          phone: {
             type: 'string',
-            example: 'admin@digitalizepos.com',
+            example: '+1234567890',
           },
         },
       },

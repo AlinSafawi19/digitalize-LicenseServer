@@ -16,7 +16,7 @@ export interface SubscriptionWithLicense {
     id: number;
     licenseKey: string;
     customerName: string | null;
-    customerEmail: string | null;
+    customerPhone: string | null;
     locationName: string | null;
   };
 }
@@ -121,7 +121,7 @@ export class SubscriptionService {
               id: true,
               licenseKey: true,
               customerName: true,
-              customerEmail: true,
+              customerPhone: true,
               locationName: true,
             },
           },
@@ -170,7 +170,7 @@ export class SubscriptionService {
             id: true,
             licenseKey: true,
             customerName: true,
-            customerEmail: true,
+            customerPhone: true,
             locationName: true,
           },
         },
@@ -222,7 +222,7 @@ export class SubscriptionService {
             id: true,
             licenseKey: true,
             customerName: true,
-            customerEmail: true,
+            customerPhone: true,
             locationName: true,
           },
         },
@@ -282,7 +282,7 @@ export class SubscriptionService {
             id: true,
             licenseKey: true,
             customerName: true,
-            customerEmail: true,
+            customerPhone: true,
             locationName: true,
           },
         },
@@ -357,7 +357,7 @@ export class SubscriptionService {
             id: true,
             licenseKey: true,
             customerName: true,
-            customerEmail: true,
+            customerPhone: true,
             locationName: true,
           },
         },
@@ -397,7 +397,7 @@ export class SubscriptionService {
             id: true,
             licenseKey: true,
             customerName: true,
-            customerEmail: true,
+            customerPhone: true,
             locationName: true,
             isFreeTrial: true,
           },
@@ -425,15 +425,29 @@ export class SubscriptionService {
         expired: expiredSubscriptions.count,
       });
 
-      // Send expiration notification emails
-      const { EmailService } = await import('./email.service');
+      // Send expiration notification WhatsApp messages
+      const { WhatsAppService } = await import('./whatsapp.service');
+      const { PhoneVerificationService } = await import('./phoneVerification.service');
       for (const subscription of subscriptionsToExpire) {
-        if (subscription.license.customerEmail) {
+        if (subscription.license.customerPhone) {
+          const phone = subscription.license.customerPhone;
+          
+          // Only send license-related messages to verified phone numbers
+          const isVerified = await PhoneVerificationService.hasPhoneBeenVerified(phone);
+          if (!isVerified) {
+            logger.info('Skipping expiration notification: phone number not verified', {
+              subscriptionId: subscription.id,
+              licenseId: subscription.license.id,
+              customerPhone: phone,
+            });
+            continue;
+          }
+
           const daysRemaining = Math.ceil((subscription.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
           try {
-            await EmailService.sendExpirationNotification({
+            await WhatsAppService.sendExpirationNotification({
               customerName: subscription.license.customerName,
-              customerEmail: subscription.license.customerEmail,
+              customerPhone: phone,
               licenseKey: subscription.license.licenseKey,
               locationName: subscription.license.locationName,
               expirationDate: subscription.endDate,
@@ -442,7 +456,7 @@ export class SubscriptionService {
             });
           } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error('Failed to send expiration notification email', {
+            logger.error('Failed to send expiration notification WhatsApp message', {
               subscriptionId: subscription.id,
               licenseId: subscription.license.id,
               error: errorMessage,

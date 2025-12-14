@@ -107,7 +107,8 @@ export class AdminLicenseController {
     try {
       const input: CreateLicenseInput = {
         customerName: req.body.customerName,
-        customerEmail: req.body.customerEmail,
+        customerPhone: req.body.customerPhone,
+        verificationToken: req.body.verificationToken, // Optional for admin, but recommended
         initialPrice: req.body.initialPrice !== undefined && req.body.initialPrice !== null
           ? parseFloat(String(req.body.initialPrice))
           : undefined,
@@ -125,7 +126,8 @@ export class AdminLicenseController {
         version: req.body.version || 'grocery',
       };
 
-      const license = await LicenseService.createLicense(input);
+      // Admin can skip phone verification if needed (for trusted admin operations)
+      const license = await LicenseService.createLicense(input, true);
 
       logger.info('Admin created license', {
         adminId: req.admin?.id,
@@ -169,7 +171,7 @@ export class AdminLicenseController {
 
       const input: UpdateLicenseInput = {
         customerName: req.body.customerName,
-        customerEmail: req.body.customerEmail,
+        customerPhone: req.body.customerPhone,
         status: req.body.status,
         locationName: req.body.locationName,
         locationAddress: req.body.locationAddress,

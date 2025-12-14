@@ -24,6 +24,7 @@ import {
   sanitizeInputMiddleware,
   REQUEST_SIZE_LIMITS,
 } from './config/security.config';
+import { execSync } from 'child_process';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -118,15 +119,15 @@ const startServer = async () => {
     if (process.env.NODE_ENV === 'production') {
       try {
         logger.info('Running database migrations...');
-        const { execSync } = require('child_process');
         execSync('npx prisma migrate deploy', { 
           stdio: 'inherit',
           env: { ...process.env }
         });
         logger.info('Database migrations completed successfully');
-      } catch (migrationError: any) {
+      } catch (migrationError: unknown) {
+        const errorMessage = migrationError instanceof Error ? migrationError.message : String(migrationError);
         logger.warn('Database migration warning', { 
-          error: migrationError?.message || String(migrationError) 
+          error: errorMessage 
         });
         // Don't exit - migrations might have already been applied
         // Server will start and show actual errors if tables are missing

@@ -11,7 +11,7 @@ model License {
   id              Int            @id @default(autoincrement())
   licenseKey      String         @unique
   customerName    String?
-  customerEmail   String?
+  customerPhone   String?
   purchaseDate    DateTime       @default(now())
   initialPrice    Decimal        @default(350.00) @db.Decimal(10, 2)
   pricePerUser    Decimal        @default(25.00) @db.Decimal(10, 2)
@@ -33,7 +33,7 @@ model License {
 
   @@index([licenseKey])
   @@index([status])
-  @@index([customerEmail])
+  @@index([customerPhone])
   @@index([customerName])
   @@index([locationName])
   @@index([createdAt])
@@ -44,7 +44,7 @@ model License {
   @@index([endDate])
   // Performance optimization: Composite indexes for common query patterns
   @@index([status, isFreeTrial]) // For filtering by status and free trial together
-  @@index([customerEmail, locationName]) // For duplicate license check (case-insensitive search)
+  @@index([customerPhone, locationName]) // For duplicate license check (case-insensitive search)
 }
 
 model Activation {
@@ -112,7 +112,7 @@ model Payment {
 model Admin {
   id           Int       @id @default(autoincrement())
   username     String    @unique
-  email        String    @unique
+  phone        String    @unique
   passwordHash String
   isActive     Boolean   @default(true)
   lastLogin    DateTime?
@@ -120,5 +120,22 @@ model Admin {
   updatedAt    DateTime  @updatedAt
 
   @@index([username])
-  @@index([email])
+  @@index([phone])
+}
+
+model PhoneVerification {
+  id            Int       @id @default(autoincrement())
+  phone         String
+  otpCode       String
+  verified      Boolean   @default(false)
+  expiresAt     DateTime
+  verifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([phone])
+  @@index([otpCode])
+  @@index([expiresAt])
+  @@index([verified])
+  @@index([phone, verified])
 }

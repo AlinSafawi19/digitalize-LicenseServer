@@ -6,7 +6,7 @@ declare global {
       admin?: {
         id: number;
         username: string;
-        email: string;
+        phone: string;
       };
     }
   }

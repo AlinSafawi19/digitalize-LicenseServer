@@ -6,7 +6,7 @@ import { logger } from '../utils/logger';
 
 export interface CreateAdminInput {
   username: string;
-  email: string;
+  phone: string;
   password: string;
 }
 
@@ -18,27 +18,27 @@ export interface LoginInput {
 export interface AdminPayload {
   id: number;
   username: string;
-  email: string;
+  phone: string;
 }
 
 export class AdminService {
   /**
    * Create a new admin user
    */
-  static async createAdmin(input: CreateAdminInput): Promise<{ id: number; username: string; email: string }> {
+  static async createAdmin(input: CreateAdminInput): Promise<{ id: number; username: string; phone: string }> {
     try {
-      // Check if username or email already exists
+      // Check if username or phone already exists
       const existingAdmin = await prisma.admin.findFirst({
         where: {
           OR: [
             { username: input.username },
-            { email: input.email },
+            { phone: input.phone },
           ],
         },
       });
 
       if (existingAdmin) {
-        throw new Error('Username or email already exists');
+        throw new Error('Username or phone already exists');
       }
 
       // Hash password
@@ -49,19 +49,19 @@ export class AdminService {
       const admin = await prisma.admin.create({
         data: {
           username: input.username,
-          email: input.email,
+          phone: input.phone,
           passwordHash,
         },
         select: {
           id: true,
           username: true,
-          email: true,
+          phone: true,
           isActive: true,
           createdAt: true,
         },
       });
 
-      logger.info('Admin user created', { username: admin.username, email: admin.email });
+      logger.info('Admin user created', { username: admin.username, phone: admin.phone });
 
       return admin;
     } catch (error) {
@@ -106,7 +106,7 @@ export class AdminService {
       const payload: AdminPayload = {
         id: admin.id,
         username: admin.username,
-        email: admin.email,
+        phone: admin.phone,
       };
 
       // Ensure JWT secret is set
@@ -150,7 +150,7 @@ export class AdminService {
         select: {
           id: true,
           username: true,
-          email: true,
+          phone: true,
           isActive: true,
         },
       });
@@ -166,7 +166,7 @@ export class AdminService {
       return {
         id: admin.id,
         username: admin.username,
-        email: admin.email,
+        phone: admin.phone,
       };
     } catch (error) {
       logger.error('Token verification failed', { error });
@@ -177,14 +177,14 @@ export class AdminService {
   /**
    * Get admin by ID
    */
-  static async getAdminById(id: number): Promise<{ id: number; username: string; email: string; isActive: boolean; lastLogin: Date | null } | null> {
+  static async getAdminById(id: number): Promise<{ id: number; username: string; phone: string; isActive: boolean; lastLogin: Date | null } | null> {
     try {
       const admin = await prisma.admin.findUnique({
         where: { id },
         select: {
           id: true,
           username: true,
-          email: true,
+          phone: true,
           isActive: true,
           lastLogin: true,
           createdAt: true,
@@ -247,21 +247,21 @@ export class AdminService {
   }
 
   /**
-   * Update admin profile (username and email)
+   * Update admin profile (username and phone)
    */
   static async updateProfile(
     adminId: number,
-    updates: { username?: string; email?: string }
-  ): Promise<{ id: number; username: string; email: string }> {
+    updates: { username?: string; phone?: string }
+  ): Promise<{ id: number; username: string; phone: string }> {
     try {
-      // Check if username or email already exists (excluding current admin)
-      if (updates.username || updates.email) {
+      // Check if username or phone already exists (excluding current admin)
+      if (updates.username || updates.phone) {
         const orConditions = [];
         if (updates.username) {
           orConditions.push({ username: updates.username });
         }
-        if (updates.email) {
-          orConditions.push({ email: updates.email });
+        if (updates.phone) {
+          orConditions.push({ phone: updates.phone });
         }
 
         if (orConditions.length > 0) {
@@ -275,8 +275,8 @@ export class AdminService {
             if (existingAdmin.username === updates.username) {
               throw new Error('Username already exists');
             }
-            if (existingAdmin.email === updates.email) {
-              throw new Error('Email already exists');
+            if (existingAdmin.phone === updates.phone) {
+              throw new Error('Phone already exists');
             }
           }
         }
@@ -287,12 +287,12 @@ export class AdminService {
         where: { id: adminId },
         data: {
           ...(updates.username && { username: updates.username }),
-          ...(updates.email && { email: updates.email }),
+          ...(updates.phone && { phone: updates.phone }),
         },
         select: {
           id: true,
           username: true,
-          email: true,
+          phone: true,
         },
       });
 

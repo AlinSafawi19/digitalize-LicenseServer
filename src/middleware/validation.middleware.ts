@@ -60,14 +60,15 @@ export const validateCustomerName = (): ValidationChain => {
 };
 
 /**
- * Validates customer email
+ * Validates customer phone number
  */
-export const validateCustomerEmail = (): ValidationChain => {
-  return body('customerEmail')
+export const validateCustomerPhone = (): ValidationChain => {
+  return body('customerPhone')
     .optional()
-    .isEmail()
-    .withMessage('Customer email must be a valid email address')
-    .normalizeEmail();
+    .isString()
+    .withMessage('Customer phone must be a string')
+    .matches(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/)
+    .withMessage('Customer phone must be a valid phone number');
 };
 
 /**

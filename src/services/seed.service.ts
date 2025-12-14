@@ -33,7 +33,7 @@ export class SeedService {
       const admin = await prisma.admin.create({
         data: {
           username: 'admin',
-          email: 'admin@digitalizepos.com',
+          phone: '+1234567890',
           passwordHash: adminPasswordHash,
           isActive: true,
         },
@@ -42,7 +42,7 @@ export class SeedService {
       logger.info('✅ Initial seed completed successfully!', {
         adminId: admin.id,
         username: admin.username,
-        email: admin.email,
+        phone: admin.phone,
       });
       logger.warn('⚠️  Default admin password is: admin123 - Please change this in production!');
     } catch (error: unknown) {

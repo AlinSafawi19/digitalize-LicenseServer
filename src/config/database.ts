@@ -88,12 +88,61 @@ let isConnected = false;
 export const connectDatabase = async (): Promise<void> => {
   if (isConnected) return;
   
+  // Validate DATABASE_URL is set
+  if (!databaseUrl || databaseUrl.trim() === '') {
+    const errorMessage = 'DATABASE_URL environment variable is not set. Please check your .env file.';
+    logger.error(errorMessage);
+    throw new Error(errorMessage);
+  }
+  
   try {
     await prisma.$connect();
     isConnected = true;
     logger.info('Database connected successfully');
-  } catch (error) {
-    logger.error('Database connection failed', { error });
+  } catch (error: unknown) {
+    // Provide more detailed error information
+    const errorObj = error as { errorCode?: string; code?: string; message?: string };
+    const errorCode = errorObj?.errorCode || errorObj?.code;
+    const errorMessage = errorObj?.message || String(error);
+    
+    // Parse DATABASE_URL to show connection details (without password)
+    const urlMatch = databaseUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/([^?]+)/);
+    const connectionInfo = urlMatch 
+      ? {
+          user: urlMatch[1],
+          host: urlMatch[3],
+          port: urlMatch[4],
+          database: urlMatch[5],
+        }
+      : null;
+    
+    // Get troubleshooting message based on error code
+    const troubleshootingMessages: Record<string, string> = {
+      P1001: 'Cannot reach database server. Check if PostgreSQL is running and accessible.',
+      P1003: 'Database does not exist. Create the database or check the database name in DATABASE_URL.',
+      P1000: 'Authentication failed. Check username and password in DATABASE_URL.',
+      default: 'Check your DATABASE_URL format: postgresql://user:password@host:port/database',
+    };
+    
+    const troubleshooting = errorCode && troubleshootingMessages[errorCode] 
+      ? troubleshootingMessages[errorCode]
+      : troubleshootingMessages.default || 'Unknown database connection error. Check your DATABASE_URL and PostgreSQL server status.';
+    
+    logger.error('Database connection failed', {
+      errorCode,
+      errorMessage,
+      connectionInfo,
+      troubleshooting,
+    });
+    
+    // Provide helpful suggestions based on error code
+    if (errorCode === 'P1003') {
+      logger.error('Database does not exist. To create it, run:', {
+        command: `psql -U ${connectionInfo?.user || 'postgres'} -h ${connectionInfo?.host || 'localhost'} -c "CREATE DATABASE ${connectionInfo?.database || 'digitalizePOS_licenses'};"`,
+        alternative: `Or use: npx prisma migrate dev (this will create the database if it doesn't exist)`,
+      });
+    }
+    
     throw error;
   }
 };

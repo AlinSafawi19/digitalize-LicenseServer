@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { LicenseService, CreateLicenseInput } from '../services/license.service';
 import { PublicLicenseService } from '../services/publicLicense.service';
-import { EmailService } from '../services/email.service';
+import { WhatsAppService } from '../services/whatsapp.service';
 import { ResponseUtil } from '../utils/response.util';
 import { logger } from '../utils/logger';
 
@@ -18,7 +18,8 @@ export class LicenseController {
     try {
       const input: CreateLicenseInput = {
         customerName: req.body.customerName,
-        customerEmail: req.body.customerEmail,
+        customerPhone: req.body.customerPhone,
+        verificationToken: req.body.verificationToken,
         initialPrice: req.body.initialPrice !== undefined && req.body.initialPrice !== null 
           ? parseFloat(String(req.body.initialPrice)) 
           : undefined,
@@ -36,7 +37,9 @@ export class LicenseController {
         version: req.body.version || 'grocery',
       };
 
-      const license = await LicenseService.createLicense(input);
+      // Skip verification for free trials from marketing website (verification happens after license creation)
+      const skipVerification = input.isFreeTrial === true;
+      const license = await LicenseService.createLicense(input, skipVerification);
 
       logger.info('License generated successfully', {
         licenseId: license.id,
@@ -92,7 +95,7 @@ export class LicenseController {
         id: license.id,
         licenseKey: license.licenseKey,
         customerName: license.customerName,
-        customerEmail: license.customerEmail,
+        customerPhone: license.customerPhone,
         status: license.status,
         isFreeTrial: license.isFreeTrial,
         freeTrialEndDate: license.freeTrialEndDate,
@@ -176,7 +179,7 @@ export class LicenseController {
           locationName: result.locationName,
           locationAddress: result.locationAddress,
           customerName: result.customerName,
-          customerEmail: result.customerEmail,
+          customerPhone: result.customerPhone,
           isReactivatingActive: result.isReactivatingActive || false,
         });
       } else {
@@ -238,12 +241,12 @@ export class LicenseController {
   }
 
   /**
-   * Send activation credentials via email
+   * Send activation credentials via WhatsApp
    * POST /api/license/send-credentials
    */
   static async sendCredentials(req: Request, res: Response): Promise<void> {
     try {
-      const { licenseKey, username, password, locationName, locationAddress, customerName, customerEmail } = req.body;
+      const { licenseKey, username, password, locationName, locationAddress, customerName, customerPhone } = req.body;
 
       if (!licenseKey || !username || !password || !locationName || !locationAddress) {
         ResponseUtil.error(
@@ -254,21 +257,29 @@ export class LicenseController {
         return;
       }
 
-      // If customer email is not provided, try to get it from the license
-      let email = customerEmail;
-      if (!email) {
+      // If customer phone is not provided, try to get it from the license
+      let phone = customerPhone;
+      if (!phone) {
         const license = await LicenseService.findLicenseByKey(licenseKey);
         if (license) {
-          email = license.customerEmail;
+          phone = license.customerPhone;
         }
       }
 
-      if (!email) {
-        ResponseUtil.error(res, 'Customer email is required to send credentials', 400);
+      if (!phone) {
+        ResponseUtil.error(res, 'Customer phone number is required to send credentials', 400);
         return;
       }
 
-      const emailSent = await EmailService.sendActivationCredentials(email, {
+      // Only send license-related messages to verified phone numbers
+      const { PhoneVerificationService } = await import('../services/phoneVerification.service');
+      const isVerified = await PhoneVerificationService.hasPhoneBeenVerified(phone);
+      if (!isVerified) {
+        ResponseUtil.error(res, 'Phone number must be verified before sending license-related information', 400);
+        return;
+      }
+
+      const whatsappSent = await WhatsAppService.sendActivationCredentials(phone, {
         username,
         password,
         licenseKey,
@@ -277,28 +288,28 @@ export class LicenseController {
         customerName: customerName || null,
       });
 
-      if (emailSent) {
-        logger.info('Credentials email sent successfully', {
+      if (whatsappSent) {
+        logger.info('Credentials WhatsApp message sent successfully', {
           licenseKey: licenseKey.substring(0, 8) + '...',
-          email,
+          phone,
         });
-        ResponseUtil.success(res, { email }, 'Credentials email sent successfully');
+        ResponseUtil.success(res, { phone }, 'Credentials WhatsApp message sent successfully');
       } else {
-        logger.warn('Failed to send credentials email (email service may be disabled)', {
+        logger.warn('Failed to send credentials WhatsApp message (WhatsApp service may be disabled)', {
           licenseKey: licenseKey.substring(0, 8) + '...',
-          email,
+          phone,
         });
-        // Return success even if email fails, as credentials are still saved locally
+        // Return success even if WhatsApp fails, as credentials are still saved locally
         ResponseUtil.success(
           res,
-          { email, emailSent: false },
-          'Credentials saved, but email could not be sent. Please check email configuration.',
+          { phone, whatsappSent: false },
+          'Credentials saved, but WhatsApp message could not be sent. Please check WhatsApp configuration.',
           200
         );
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send credentials email';
-      logger.error('Error sending credentials email', { error: errorMessage });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send credentials WhatsApp message';
+      logger.error('Error sending credentials WhatsApp message', { error: errorMessage });
       ResponseUtil.error(res, errorMessage, 500);
     }
   }
@@ -425,6 +436,86 @@ export class LicenseController {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to sync user count';
       logger.error('Error syncing user count', { error: errorMessage });
+      ResponseUtil.error(res, errorMessage, 500);
+    }
+  }
+
+  /**
+   * Send license details via WhatsApp after phone verification
+   * POST /api/license/send-license-details
+   */
+  static async sendLicenseDetails(req: Request, res: Response): Promise<void> {
+    try {
+      const { licenseKey, customerPhone } = req.body;
+
+      if (!licenseKey || !customerPhone) {
+        ResponseUtil.error(
+          res,
+          'License key and customer phone number are required',
+          400
+        );
+        return;
+      }
+
+      // Find the license
+      const license = await LicenseService.findLicenseByKey(licenseKey);
+      if (!license) {
+        ResponseUtil.error(res, 'License not found', 404);
+        return;
+      }
+
+      // Verify that the phone number matches
+      const normalizedRequestPhone = customerPhone.trim().replace(/\D/g, '');
+      const normalizedLicensePhone = license.customerPhone?.trim().replace(/\D/g, '') || '';
+      
+      if (normalizedRequestPhone !== normalizedLicensePhone) {
+        ResponseUtil.error(res, 'Phone number does not match the license', 400);
+        return;
+      }
+
+      // Only send license-related messages to verified phone numbers
+      const { PhoneVerificationService } = await import('../services/phoneVerification.service');
+      const isVerified = await PhoneVerificationService.hasPhoneBeenVerified(customerPhone);
+      if (!isVerified) {
+        ResponseUtil.error(res, 'Phone number must be verified before sending license-related information', 400);
+        return;
+      }
+
+      // Get the active subscription for expiration date
+      const activeSubscription = license.subscriptions?.find(sub => sub.status === 'active');
+      const expiresAt = activeSubscription?.endDate || null;
+
+      const whatsappSent = await WhatsAppService.sendLicenseDetails({
+        customerName: license.customerName,
+        customerPhone: customerPhone,
+        licenseKey: license.licenseKey,
+        locationName: license.locationName || '',
+        locationAddress: license.locationAddress || '',
+        isFreeTrial: license.isFreeTrial,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      });
+
+      if (whatsappSent) {
+        logger.info('License details WhatsApp message sent successfully', {
+          licenseKey,
+          customerPhone,
+        });
+      }
+
+      ResponseUtil.success(
+        res,
+        {
+          phone: customerPhone,
+          whatsappSent,
+        },
+        whatsappSent 
+          ? 'License details sent successfully via WhatsApp' 
+          : 'License details message queued (WhatsApp service may be disabled)',
+        200
+      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send license details';
+      logger.error('Error sending license details', { error: errorMessage });
       ResponseUtil.error(res, errorMessage, 500);
     }
   }

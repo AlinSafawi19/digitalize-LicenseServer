@@ -82,12 +82,12 @@ router.get('/stats', AdminStatsController.getStats);
  *         name: search
  *         schema:
  *           type: string
- *         description: Search by license key, customer name, email, or location
+ *         description: Search by license key, customer name, phone, or location
  *       - in: query
  *         name: sortBy
  *         schema:
  *           type: string
- *           enum: [id, licenseKey, customerName, customerEmail, status, purchaseDate, createdAt, updatedAt]
+ *           enum: [id, licenseKey, customerName, customerPhone, status, purchaseDate, createdAt, updatedAt]
  *         description: Field to sort by
  *       - in: query
  *         name: sortOrder
@@ -132,7 +132,7 @@ router.get(
     query('sortBy')
       .optional()
       .isString()
-      .isIn(['id', 'licenseKey', 'customerName', 'customerEmail', 'status', 'purchaseDate', 'createdAt', 'updatedAt'])
+      .isIn(['id', 'licenseKey', 'customerName', 'customerPhone', 'status', 'purchaseDate', 'createdAt', 'updatedAt'])
       .withMessage('Invalid sort field'),
     query('sortOrder')
       .optional()

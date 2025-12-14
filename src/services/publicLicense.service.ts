@@ -28,7 +28,7 @@ export interface ActivateLicenseResult {
   locationName?: string;
   locationAddress?: string;
   customerName?: string | null;
-  customerEmail?: string | null;
+  customerPhone?: string | null;
   isReactivatingActive?: boolean; // Flag indicating if reactivating an already active license
 }
 
@@ -306,7 +306,7 @@ export class PublicLicenseService {
         locationName,
         locationAddress,
         customerName: license.customerName,
-        customerEmail: license.customerEmail,
+        customerPhone: license.customerPhone,
         // Add flag to indicate if this is a reactivation of an active license
         isReactivatingActive: isReactivatingActiveLicense,
       };

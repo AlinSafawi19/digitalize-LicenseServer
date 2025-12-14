@@ -3,13 +3,15 @@ import { LicenseKeyGeneratorService } from './licenseKeyGenerator.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { logLicenseOperation, logger } from '../utils/logger';
 import { config } from '../config/config';
-import { EmailService } from './email.service';
+import { WhatsAppService } from './whatsapp.service';
 import { cacheService, CacheKeys } from '../utils/cache.util';
 import { limitConcurrency } from '../utils/concurrency.util';
+import { PhoneVerificationService } from './phoneVerification.service';
 
 export interface CreateLicenseInput {
   customerName?: string;
-  customerEmail?: string;
+  customerPhone?: string;
+  verificationToken?: string; // Required for phone verification
   initialPrice?: number;
   annualPrice?: number;
   pricePerUser?: number;
@@ -23,7 +25,7 @@ export interface CreateLicenseInput {
 
 export interface UpdateLicenseInput {
   customerName?: string;
-  customerEmail?: string;
+  customerPhone?: string;
   status?: 'active' | 'expired' | 'revoked' | 'suspended';
   locationName?: string;
   locationAddress?: string;
@@ -36,7 +38,7 @@ export interface LicenseWithDetails {
   id: number;
   licenseKey: string;
   customerName: string | null;
-  customerEmail: string | null;
+  customerPhone: string | null;
   purchaseDate: Date;
   initialPrice: Decimal;
   pricePerUser: Decimal;
@@ -84,7 +86,7 @@ export interface LicenseSummary {
   id: number;
   licenseKey: string;
   customerName: string | null;
-  customerEmail: string | null;
+  customerPhone: string | null;
   purchaseDate: Date;
   initialPrice: Decimal;
   pricePerUser: Decimal;
@@ -121,16 +123,30 @@ export class LicenseService {
    * @param input License creation data
    * @returns Promise<LicenseWithDetails> Created license with details
    */
-  static async createLicense(input: CreateLicenseInput): Promise<LicenseWithDetails> {
-    // Check for duplicate license with same email and location name (case-insensitive)
-    if (input.customerEmail && input.locationName) {
-      const normalizedEmail = input.customerEmail.toLowerCase().trim();
+  static async createLicense(input: CreateLicenseInput, skipVerification: boolean = false): Promise<LicenseWithDetails> {
+    // Verify phone number if provided (skip for admin-created licenses if explicitly allowed)
+    if (input.customerPhone && !skipVerification) {
+      const isVerified = await PhoneVerificationService.isPhoneVerified(
+        input.customerPhone,
+        input.verificationToken
+      );
+
+      if (!isVerified) {
+        throw new Error(
+          'Phone number must be verified before creating a license. Please verify your phone number first.'
+        );
+      }
+    }
+
+    // Check for duplicate license with same phone and location name (case-insensitive)
+    if (input.customerPhone && input.locationName) {
+      const normalizedPhone = input.customerPhone.trim().replace(/\D/g, '');
       const normalizedLocationName = input.locationName.trim();
       
       // Use raw query for case-insensitive exact match
       const existingLicense = await prisma.$queryRaw<Array<{ id: number }>>`
         SELECT id FROM "License"
-        WHERE LOWER(TRIM("customerEmail")) = LOWER(TRIM(${normalizedEmail}))
+        WHERE REPLACE(REPLACE(REPLACE(REPLACE(TRIM("customerPhone"), ' ', ''), '-', ''), '(', ''), ')', '') = ${normalizedPhone}
           AND TRIM("locationName") = ${normalizedLocationName}
           AND status IN ('active', 'expired')
         LIMIT 1
@@ -138,7 +154,7 @@ export class LicenseService {
 
       if (existingLicense && existingLicense.length > 0) {
         throw new Error(
-          `A license already exists for email "${input.customerEmail}" and branch/location "${input.locationName}". Each branch requires a unique license. Please use a different branch/location name for this customer, or use a different email address.`
+          `A license already exists for phone "${input.customerPhone}" and branch/location "${input.locationName}". Each branch requires a unique license. Please use a different branch/location name for this customer, or use a different phone number.`
         );
       }
     }
@@ -207,7 +223,7 @@ export class LicenseService {
     const licenseData: Record<string, unknown> = {
       licenseKey,
       customerName: input.customerName,
-      customerEmail: input.customerEmail,
+      customerPhone: input.customerPhone,
       initialPrice: new Decimal(initialPrice),
       pricePerUser: new Decimal(pricePerUser),
       status: 'active',
@@ -282,7 +298,7 @@ export class LicenseService {
       licenseId: license.id,
       licenseKey: license.licenseKey,
       customerName: license.customerName,
-      customerEmail: license.customerEmail,
+      customerPhone: license.customerPhone,
       locationName: license.locationName,
       initialPrice: initialPrice.toString(),
     });
@@ -549,7 +565,7 @@ export class LicenseService {
       where: { licenseKey: normalizedKey },
       data: {
         customerName: input.customerName,
-        customerEmail: input.customerEmail,
+        customerPhone: input.customerPhone,
         status: input.status,
         locationName: input.locationName,
         locationAddress: input.locationAddress,
@@ -835,7 +851,7 @@ export class LicenseService {
 
     // Build orderBy (needed for cache key)
     const orderBy: Record<string, 'asc' | 'desc'> = {};
-    const validSortFields = ['id', 'licenseKey', 'customerName', 'customerEmail', 'status', 'purchaseDate', 'createdAt', 'updatedAt'];
+    const validSortFields = ['id', 'licenseKey', 'customerName', 'customerPhone', 'status', 'purchaseDate', 'createdAt', 'updatedAt'];
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
     orderBy[sortField] = sortOrder;
 
@@ -852,7 +868,7 @@ export class LicenseService {
       where.isFreeTrial = params.isFreeTrial;
     }
 
-    // Search by license key, customer name, email, location, or ID
+    // Search by license key, customer name, phone, location, or ID
     // Performance optimization: Cache search results to reduce database load
     if (params.search) {
       const searchKey = CacheKeys.searchResults(
@@ -927,14 +943,14 @@ export class LicenseService {
           // For longer searches, prefer startsWith for better index usage
           searchConditions.push(
             { customerName: { startsWith: searchTerm, mode: 'insensitive' } },
-            { customerEmail: { startsWith: searchTerm, mode: 'insensitive' } },
+            { customerPhone: { startsWith: searchTerm, mode: 'insensitive' } },
             { locationName: { startsWith: searchTerm, mode: 'insensitive' } }
           );
         } else {
           // For 2-char searches, use contains but this will be slower (necessary for partial matches)
           searchConditions.push(
             { customerName: { contains: searchTerm, mode: 'insensitive' } },
-            { customerEmail: { contains: searchTerm, mode: 'insensitive' } },
+            { customerPhone: { contains: searchTerm, mode: 'insensitive' } },
             { locationName: { contains: searchTerm, mode: 'insensitive' } }
           );
         }
@@ -1018,7 +1034,7 @@ export class LicenseService {
               id: true,
               licenseKey: true,
               customerName: true,
-              customerEmail: true,
+              customerPhone: true,
               purchaseDate: true,
               initialPrice: true,
               pricePerUser: true,
@@ -1122,7 +1138,7 @@ export class LicenseService {
               id: true,
               licenseKey: true,
               customerName: true,
-              customerEmail: true,
+              customerPhone: true,
               purchaseDate: true,
               initialPrice: true,
               pricePerUser: true,
@@ -1181,7 +1197,7 @@ export class LicenseService {
     const updateData: Record<string, unknown> = {};
 
     if (input.customerName !== undefined) updateData.customerName = input.customerName;
-    if (input.customerEmail !== undefined) updateData.customerEmail = input.customerEmail;
+    if (input.customerPhone !== undefined) updateData.customerPhone = input.customerPhone;
     if (input.status !== undefined) updateData.status = input.status;
     if (input.locationName !== undefined) updateData.locationName = input.locationName;
     if (input.locationAddress !== undefined) updateData.locationAddress = input.locationAddress;
@@ -1537,19 +1553,32 @@ export class LicenseService {
 
     const expiredCount = expiredTrials.length;
 
-    // Performance optimization: Send emails asynchronously without blocking
-    // Fire and forget - don't wait for emails to complete before returning
+    // Performance optimization: Send WhatsApp messages asynchronously without blocking
+    // Fire and forget - don't wait for messages to complete before returning
     // This allows the expiration process to complete immediately
-    const emailPromises = expiredTrials
-      .filter(license => license.customerEmail !== null && license.customerEmail !== undefined)
+    const whatsappPromises = expiredTrials
+      .filter(license => license.customerPhone !== null && license.customerPhone !== undefined)
       .map(async (license) => {
         try {
           const activeSubscription = license.subscriptions.find((sub) => sub.status === 'active') || license.subscriptions[0];
-          if (activeSubscription && license.customerEmail) {
+          if (activeSubscription && license.customerPhone) {
+            const phone = license.customerPhone; // TypeScript now knows this is not null due to filter
+            
+            // Only send license-related messages to verified phone numbers
+            const isVerified = await PhoneVerificationService.hasPhoneBeenVerified(phone);
+            if (!isVerified) {
+              logger.info('Skipping expiration notification: phone number not verified', {
+                licenseId: license.id,
+                licenseKey: license.licenseKey,
+                customerPhone: phone,
+              });
+              return;
+            }
+
             const daysRemaining = Math.ceil((activeSubscription.endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-            await EmailService.sendExpirationNotification({
+            await WhatsAppService.sendExpirationNotification({
               customerName: license.customerName,
-              customerEmail: license.customerEmail, // TypeScript now knows this is not null due to filter
+              customerPhone: phone,
               licenseKey: license.licenseKey,
               locationName: license.locationName,
               expirationDate: activeSubscription.endDate,
@@ -1559,7 +1588,7 @@ export class LicenseService {
           }
         } catch (error: unknown) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          logger.error('Failed to send expiration notification email', {
+          logger.error('Failed to send expiration notification WhatsApp message', {
             licenseId: license.id,
             licenseKey: license.licenseKey,
             error: errorMessage,
@@ -1567,11 +1596,11 @@ export class LicenseService {
         }
       });
 
-    // Performance: Don't await - let emails send in background
+    // Performance: Don't await - let WhatsApp messages send in background
     // This prevents blocking the expiration process
     // Use Promise.allSettled in background (fire and forget)
-    Promise.allSettled(emailPromises).catch((error) => {
-      logger.error('Error in background email sending', { error });
+    Promise.allSettled(whatsappPromises).catch((error) => {
+      logger.error('Error in background WhatsApp message sending', { error });
     });
 
     if (expiredCount > 0) {
@@ -1585,9 +1614,9 @@ export class LicenseService {
   }
 
   /**
-   * Check for expiring licenses and send warning emails
+   * Check for expiring licenses and send warning WhatsApp messages
    * Sends warnings for licenses expiring in 3 days and 1 day
-   * @returns Promise<{ warningsSent: number }> Number of warning emails sent
+   * @returns Promise<{ warningsSent: number }> Number of warning WhatsApp messages sent
    */
   static async sendExpirationWarnings(): Promise<{ warningsSent: number }> {
     const now = new Date();
@@ -1603,7 +1632,7 @@ export class LicenseService {
     const expiringLicenses = await prisma.license.findMany({
       where: {
         status: 'active',
-        customerEmail: {
+        customerPhone: {
           not: null,
         },
         subscriptions: {
@@ -1625,12 +1654,12 @@ export class LicenseService {
       },
     });
 
-    // Performance optimization: Send emails in parallel with concurrency limit
-    // This prevents overwhelming the email service while still being much faster than sequential sending
-    const emailTasks = expiringLicenses
+    // Performance optimization: Send WhatsApp messages in parallel with concurrency limit
+    // This prevents overwhelming the WhatsApp service while still being much faster than sequential sending
+    const whatsappTasks = expiringLicenses
       .map((license) => {
         const activeSubscription = license.subscriptions.find((sub) => sub.status === 'active');
-        if (!activeSubscription || !license.customerEmail) {
+        if (!activeSubscription || !license.customerPhone) {
           return null;
         }
 
@@ -1640,10 +1669,23 @@ export class LicenseService {
         if (daysRemaining === 3 || daysRemaining === 1) {
           return async () => {
             try {
-              // TypeScript: customerEmail is guaranteed to be non-null due to filter above
-              const sent = await EmailService.sendExpirationWarning({
+              // TypeScript: customerPhone is guaranteed to be non-null due to filter above
+              const phone = license.customerPhone!;
+              
+              // Only send license-related messages to verified phone numbers
+              const isVerified = await PhoneVerificationService.hasPhoneBeenVerified(phone);
+              if (!isVerified) {
+                logger.info('Skipping expiration warning: phone number not verified', {
+                  licenseId: license.id,
+                  licenseKey: license.licenseKey,
+                  customerPhone: phone,
+                });
+                return false;
+              }
+
+              const sent = await WhatsAppService.sendExpirationWarning({
                 customerName: license.customerName,
-                customerEmail: license.customerEmail!, // Non-null assertion: filtered above
+                customerPhone: phone,
                 licenseKey: license.licenseKey,
                 locationName: license.locationName,
                 expirationDate: activeSubscription.endDate,
@@ -1652,7 +1694,7 @@ export class LicenseService {
               });
 
               if (sent) {
-                logger.info('Expiration warning email sent', {
+                logger.info('Expiration warning WhatsApp message sent', {
                   licenseId: license.id,
                   licenseKey: license.licenseKey,
                   daysRemaining,
@@ -1662,7 +1704,7 @@ export class LicenseService {
               return false;
             } catch (error: unknown) {
               const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-              logger.error('Failed to send expiration warning email', {
+              logger.error('Failed to send expiration warning WhatsApp message', {
                 licenseId: license.id,
                 licenseKey: license.licenseKey,
                 error: errorMessage,
@@ -1675,9 +1717,9 @@ export class LicenseService {
       })
       .filter((task): task is () => Promise<boolean> => task !== null);
 
-    // Execute email tasks with concurrency limit of 5 (prevents overwhelming email service)
-    const emailResults = await limitConcurrency(emailTasks, 5);
-    const warningsSent = emailResults.filter((r) => r.success && r.result === true).length;
+    // Execute WhatsApp tasks with concurrency limit of 5 (prevents overwhelming WhatsApp service)
+    const whatsappResults = await limitConcurrency(whatsappTasks, 5);
+    const warningsSent = whatsappResults.filter((r) => r.success && r.result === true).length;
 
     if (warningsSent > 0) {
       logger.info('Expiration warnings batch completed', {

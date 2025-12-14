@@ -49,12 +49,12 @@ router.use(adminLimiter);
  *         name: search
  *         schema:
  *           type: string
- *         description: Search by license key, customer name, email, or location
+ *         description: Search by license key, customer name, phone, or location
  *       - in: query
  *         name: sortBy
  *         schema:
  *           type: string
- *           enum: [id, licenseKey, customerName, customerEmail, status, purchaseDate, createdAt, updatedAt]
+ *           enum: [id, licenseKey, customerName, customerPhone, status, purchaseDate, createdAt, updatedAt]
  *         description: Field to sort by
  *       - in: query
  *         name: sortOrder
@@ -123,7 +123,7 @@ router.get(
     query('sortBy')
       .optional()
       .isString()
-      .isIn(['id', 'licenseKey', 'customerName', 'customerEmail', 'status', 'purchaseDate', 'createdAt', 'updatedAt'])
+      .isIn(['id', 'licenseKey', 'customerName', 'customerPhone', 'status', 'purchaseDate', 'createdAt', 'updatedAt'])
       .withMessage('Invalid sort field'),
     query('sortOrder')
       .optional()
@@ -272,10 +272,10 @@ router.get(
  *               customerName:
  *                 type: string
  *                 example: John Doe
- *               customerEmail:
+ *               customerPhone:
  *                 type: string
- *                 format: email
- *                 example: john.doe@example.com
+ *                 format: tel
+ *                 example: +1234567890
  *               initialPrice:
  *                 type: number
  *                 minimum: 0
@@ -321,11 +321,12 @@ router.post(
       .trim()
       .isLength({ min: 1, max: 255 })
       .withMessage('Customer name must be between 1 and 255 characters'),
-    body('customerEmail')
+    body('customerPhone')
       .optional()
-      .isEmail()
-      .normalizeEmail()
-      .withMessage('Customer email must be a valid email address'),
+      .isString()
+      .withMessage('Customer phone must be a string')
+      .matches(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/)
+      .withMessage('Customer phone must be a valid phone number'),
     body('initialPrice')
       .optional()
       .isFloat({ min: 0 })
@@ -393,10 +394,10 @@ router.post(
  *               customerName:
  *                 type: string
  *                 example: John Doe
- *               customerEmail:
+ *               customerPhone:
  *                 type: string
- *                 format: email
- *                 example: john.doe@example.com
+ *                 format: tel
+ *                 example: +1234567890
  *               status:
  *                 type: string
  *                 enum: [active, expired, revoked, suspended]
@@ -450,11 +451,12 @@ router.put(
       .trim()
       .isLength({ min: 1, max: 255 })
       .withMessage('Customer name must be between 1 and 255 characters'),
-    body('customerEmail')
+    body('customerPhone')
       .optional()
-      .isEmail()
-      .normalizeEmail()
-      .withMessage('Customer email must be a valid email address'),
+      .isString()
+      .withMessage('Customer phone must be a string')
+      .matches(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/)
+      .withMessage('Customer phone must be a valid phone number'),
     body('status')
       .optional()
       .isIn(['active', 'expired', 'revoked', 'suspended'])

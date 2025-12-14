@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import licenseRoutes from './license.routes';
+import phoneVerificationRoutes from './phoneVerification.routes';
 import adminRoutes from './admin.routes';
 import adminLicenseRoutes from './adminLicense.routes';
 import adminActivationRoutes from './adminActivation.routes';
@@ -12,6 +13,9 @@ const router = Router();
 
 // Apply general API rate limiting to all routes
 router.use(generalApiLimiter);
+
+// Phone verification routes
+router.use('/phone-verification', phoneVerificationRoutes);
 
 // License routes
 router.use('/license', licenseRoutes);

@@ -3,7 +3,7 @@
  * Provides structure for monitoring alerts and notifications
  * 
  * This is a basic structure that can be extended with:
- * - Email notifications
+ * - WhatsApp notifications
  * - Slack/Discord webhooks
  * - SMS alerts
  * - PagerDuty integration
@@ -192,12 +192,12 @@ class AlertingSystem {
     }
 
     // Here you can extend to send notifications:
-    // - Email notifications
+    // - WhatsApp notifications
     // - Slack/Discord webhooks
     // - SMS alerts
     // - PagerDuty integration
     // Example:
-    // this.sendEmailNotification(alert);
+    // this.sendWhatsAppNotification(alert);
     // this.sendSlackNotification(alert);
   }
 

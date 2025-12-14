@@ -26,18 +26,18 @@ async function main() {
     update: {
       passwordHash: adminPasswordHash,
       isActive: true,
-      email: 'admin@digitalizepos.com',
+      phone: '+1234567890',
     },
     create: {
       username: 'admin',
-      email: 'admin@digitalizepos.com',
+      phone: '+1234567890',
       passwordHash: adminPasswordHash,
       isActive: true,
     },
   });
 
   console.log('✅ Seed data created successfully!');
-  console.log(`   - Admin user: ${admin.username} (email: ${admin.email})`);
+  console.log(`   - Admin user: ${admin.username} (phone: ${admin.phone})`);
   console.log(`   - Admin password: ${adminPassword} (change this in production!)`);
 }
 

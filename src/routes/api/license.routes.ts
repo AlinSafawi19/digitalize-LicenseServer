@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { LicenseController } from '../../controllers/license.controller';
 import {
   validateCustomerName,
-  validateCustomerEmail,
+  validateCustomerPhone,
   validateInitialPrice,
   validateLocationName,
   validateLocationAddress,
@@ -33,10 +33,10 @@ const router = Router();
  *               customerName:
  *                 type: string
  *                 example: John Doe
- *               customerEmail:
+ *               customerPhone:
  *                 type: string
- *                 format: email
- *                 example: john.doe@example.com
+ *                 format: tel
+ *                 example: +1234567890
  *               initialPrice:
  *                 type: number
  *                 minimum: 0
@@ -89,7 +89,7 @@ router.post(
   '/generate',
   [
     validateCustomerName(),
-    validateCustomerEmail(),
+    validateCustomerPhone(),
     validateInitialPrice(),
     validateLocationName(),
     validateLocationAddress(),
@@ -265,8 +265,8 @@ router.post(
  * @swagger
  * /api/license/send-credentials:
  *   post:
- *     summary: Send activation credentials via email
- *     description: Sends login credentials to the customer's email address after license activation
+ *     summary: Send activation credentials via WhatsApp
+ *     description: Sends login credentials to the customer's phone number via WhatsApp after license activation
  *     tags: [License]
  *     requestBody:
  *       required: true
@@ -299,13 +299,13 @@ router.post(
  *               customerName:
  *                 type: string
  *                 example: John Doe
- *               customerEmail:
+ *               customerPhone:
  *                 type: string
- *                 format: email
- *                 example: john.doe@example.com
+ *                 format: tel
+ *                 example: +1234567890
  *     responses:
  *       200:
- *         description: Credentials email sent successfully (or email service disabled)
+ *         description: Credentials WhatsApp message sent successfully (or WhatsApp service disabled)
  *         content:
  *           application/json:
  *             schema:
@@ -316,9 +316,9 @@ router.post(
  *                     data:
  *                       type: object
  *                       properties:
- *                         email:
+ *                         phone:
  *                           type: string
- *                         emailSent:
+ *                         whatsappSent:
  *                           type: boolean
  *       400:
  *         description: Invalid request or missing required fields
@@ -338,6 +338,73 @@ router.post(
   validationLimiter,
   [validateLicenseKeyRequired(), handleValidationErrors],
   LicenseController.sendCredentials,
+);
+
+/**
+ * @swagger
+ * /api/license/send-license-details:
+ *   post:
+ *     summary: Send license details via WhatsApp after phone verification
+ *     description: Sends license key and details to the customer's phone number via WhatsApp after phone verification
+ *     tags: [License]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - licenseKey
+ *               - customerPhone
+ *             properties:
+ *               licenseKey:
+ *                 type: string
+ *                 example: ABCD-1234-EFGH-5678-XXXX
+ *               customerPhone:
+ *                 type: string
+ *                 format: tel
+ *                 example: +1234567890
+ *     responses:
+ *       200:
+ *         description: License details WhatsApp message sent successfully (or WhatsApp service disabled)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/Success'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         phone:
+ *                           type: string
+ *                         whatsappSent:
+ *                           type: boolean
+ *       400:
+ *         description: Invalid request, phone not verified, or phone doesn't match license
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: License not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post(
+  '/send-license-details',
+  validationLimiter,
+  [validateLicenseKeyRequired(), validateCustomerPhone(), handleValidationErrors],
+  LicenseController.sendLicenseDetails,
 );
 
 /**

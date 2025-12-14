@@ -15,7 +15,7 @@ export interface PaymentWithLicense {
     id: number;
     licenseKey: string;
     customerName: string | null;
-    customerEmail: string | null;
+    customerPhone: string | null;
     locationName: string | null;
   };
 }
@@ -109,7 +109,7 @@ export class PaymentService {
               id: true,
               licenseKey: true,
               customerName: true,
-              customerEmail: true,
+              customerPhone: true,
               locationName: true,
             },
           },
@@ -171,7 +171,7 @@ export class PaymentService {
             id: true,
             licenseKey: true,
             customerName: true,
-            customerEmail: true,
+            customerPhone: true,
             locationName: true,
           },
         },
@@ -579,7 +579,7 @@ export class PaymentService {
               id: true,
               licenseKey: true,
               customerName: true,
-              customerEmail: true,
+              customerPhone: true,
               locationName: true,
             },
           },

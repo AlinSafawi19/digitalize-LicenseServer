@@ -68,7 +68,7 @@ export class AdminController {
         {
           id: admin.id,
           username: admin.username,
-          email: admin.email,
+          phone: admin.phone,
           isActive: admin.isActive,
           lastLogin: admin.lastLogin,
         },
@@ -119,17 +119,17 @@ export class AdminController {
         return;
       }
 
-      const { username, email } = req.body;
+      const { username, phone } = req.body;
 
       // Validate that at least one field is provided
-      if (!username && !email) {
-        ResponseUtil.error(res, 'At least one field (username or email) must be provided', 400);
+      if (!username && !phone) {
+        ResponseUtil.error(res, 'At least one field (username or phone) must be provided', 400);
         return;
       }
 
-      const updates: { username?: string; email?: string } = {};
+      const updates: { username?: string; phone?: string } = {};
       if (username) updates.username = username;
-      if (email) updates.email = email;
+      if (phone) updates.phone = phone;
 
       const updatedAdmin = await AdminService.updateProfile(req.admin.id, updates);
 
@@ -143,7 +143,7 @@ export class AdminController {
         {
           id: updatedAdmin.id,
           username: updatedAdmin.username,
-          email: updatedAdmin.email,
+          phone: updatedAdmin.phone,
         },
         'Profile updated successfully',
         200

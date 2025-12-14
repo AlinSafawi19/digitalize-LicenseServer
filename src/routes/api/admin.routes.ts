@@ -176,7 +176,7 @@ router.post(
  * /api/admin/profile:
  *   put:
  *     summary: Update admin profile
- *     description: Update the authenticated admin user's profile information (username and/or email)
+ *     description: Update the authenticated admin user's profile information (username and/or phone)
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -191,10 +191,10 @@ router.post(
  *                 type: string
  *                 example: newusername
  *                 minLength: 3
- *               email:
+ *               phone:
  *                 type: string
- *                 format: email
- *                 example: newemail@example.com
+ *                 format: tel
+ *                 example: +1234567890
  *     responses:
  *       200:
  *         description: Profile updated successfully
@@ -216,10 +216,10 @@ router.post(
  *                       type: number
  *                     username:
  *                       type: string
- *                     email:
+ *                     phone:
  *                       type: string
  *       400:
- *         description: Validation error or username/email already exists
+ *         description: Validation error or username/phone already exists
  *         content:
  *           application/json:
  *             schema:
@@ -243,12 +243,11 @@ router.put(
       .withMessage('Username must be at least 3 characters')
       .matches(/^[a-zA-Z0-9_]+$/)
       .withMessage('Username can only contain letters, numbers, and underscores'),
-    body('email')
+    body('phone')
       .optional()
       .trim()
-      .isEmail()
-      .withMessage('Please provide a valid email address')
-      .normalizeEmail(),
+      .matches(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/)
+      .withMessage('Please provide a valid phone number'),
   ],
   validateRequest,
   AdminController.updateProfile
