@@ -13,6 +13,7 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts",
+    "db:seed:production": "ts-node prisma/seed.production.ts",
     "clear:license-db": "ts-node scripts/clear-license-db.ts",
     "lint": "eslint src --ext .ts --ignore-pattern '**/*.test.ts' --ignore-pattern '**/__tests__/**'",
     "lint:fix": "eslint src --ext .ts --fix",

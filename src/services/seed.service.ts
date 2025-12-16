@@ -44,7 +44,7 @@ export class SeedService {
         username: admin.username,
         phone: admin.phone,
       });
-      logger.warn('⚠️  Default admin password is: admin123 - Please change this in production!');
+      logger.warn('⚠️  Default admin password is: admin123');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('❌ Error running initial seed', { error: errorMessage });

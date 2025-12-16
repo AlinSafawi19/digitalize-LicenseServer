@@ -1,13 +1,40 @@
 /// <reference types="node" />
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import dotenv from 'dotenv';
 
-const prisma = new PrismaClient();
+// Load environment variables
+dotenv.config();
+
+// Use production DATABASE_URL if provided, otherwise use the one from env
+const databaseUrl = process.env.DATABASE_URL || '';
+
+if (!databaseUrl) {
+  console.error('❌ DATABASE_URL environment variable is required');
+  process.exit(1);
+}
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: databaseUrl,
+    },
+  },
+  log: ['error', 'warn'],
+});
 
 async function main() {
-  console.log('🌱 Starting database seeding...');
+  console.log('🌱 Starting production database seeding...');
+  console.log(`📊 Database: ${databaseUrl.replace(/:[^:@]+@/, ':****@')}`); // Hide password in logs
 
-  // Clear existing data (for development/testing)
+  // Safety check: Ensure we're not accidentally running in production without explicit confirmation
+  if (!process.env.FORCE_PRODUCTION_SEED) {
+    console.error('❌ Production seed requires FORCE_PRODUCTION_SEED=true environment variable');
+    console.error('   This is a safety measure to prevent accidental data deletion.');
+    process.exit(1);
+  }
+
+  // Clear existing data (same as dev seed)
   console.log('🧹 Clearing existing data...');
   await prisma.payment.deleteMany();
   await prisma.activation.deleteMany();
