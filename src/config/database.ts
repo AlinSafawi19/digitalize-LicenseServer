@@ -109,56 +109,88 @@ export const connectDatabase = async (forceReconnect: boolean = false): Promise<
     throw new Error(errorMessage);
   }
   
-  try {
-    await prisma.$connect();
-    isConnected = true;
-    logger.info('Database connected successfully');
-  } catch (error: unknown) {
-    // Provide more detailed error information
-    const errorObj = error as { errorCode?: string; code?: string; message?: string };
-    const errorCode = errorObj?.errorCode || errorObj?.code;
-    const errorMessage = errorObj?.message || String(error);
-    
-    // Parse DATABASE_URL to show connection details (without password)
-    const urlMatch = databaseUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/([^?]+)/);
-    const connectionInfo = urlMatch 
-      ? {
-          user: urlMatch[1],
-          host: urlMatch[3],
-          port: urlMatch[4],
-          database: urlMatch[5],
-        }
-      : null;
-    
-    // Get troubleshooting message based on error code
-    const troubleshootingMessages: Record<string, string> = {
-      P1001: 'Cannot reach database server. Check if PostgreSQL is running and accessible.',
-      P1003: 'Database does not exist. Create the database or check the database name in DATABASE_URL.',
-      P1000: 'Authentication failed. Check username and password in DATABASE_URL.',
-      default: 'Check your DATABASE_URL format: postgresql://user:password@host:port/database',
-    };
-    
-    const troubleshooting = errorCode && troubleshootingMessages[errorCode] 
-      ? troubleshootingMessages[errorCode]
-      : troubleshootingMessages.default || 'Unknown database connection error. Check your DATABASE_URL and PostgreSQL server status.';
-    
-    logger.error('Database connection failed', {
-      errorCode,
-      errorMessage,
-      connectionInfo,
-      troubleshooting,
-    });
-    
-    // Provide helpful suggestions based on error code
-    if (errorCode === 'P1003') {
-      logger.error('Database does not exist. To create it, run:', {
-        command: `psql -U ${connectionInfo?.user || 'postgres'} -h ${connectionInfo?.host || 'localhost'} -c "CREATE DATABASE ${connectionInfo?.database || 'digitalizePOS_licenses'};"`,
-        alternative: `Or use: npx prisma migrate dev (this will create the database if it doesn't exist)`,
+  // Retry connection with exponential backoff
+  const maxRetries = 5;
+  const baseDelay = 1000; // 1 second
+  let lastError: unknown;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await prisma.$connect();
+      isConnected = true;
+      logger.info('Database connected successfully', {
+        attempt,
+        totalAttempts: attempt > 1 ? attempt : undefined,
       });
+      return; // Success - exit function
+    } catch (error: unknown) {
+      lastError = error;
+      const errorObj = error as { errorCode?: string; code?: string; message?: string };
+      const errorCode = errorObj?.errorCode || errorObj?.code;
+      const errorMessage = errorObj?.message || String(error);
+      
+      // If it's the last attempt, don't retry
+      if (attempt === maxRetries) {
+        break;
+      }
+      
+      // Calculate delay with exponential backoff
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      logger.warn(`Database connection attempt ${attempt}/${maxRetries} failed, retrying in ${delay}ms...`, {
+        errorCode,
+        errorMessage: errorMessage.substring(0, 100), // Truncate long messages
+      });
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-    
-    throw error;
   }
+  
+  // If we get here, all retries failed
+  const errorObj = lastError as { errorCode?: string; code?: string; message?: string };
+  const errorCode = errorObj?.errorCode || errorObj?.code;
+  const errorMessage = errorObj?.message || String(lastError);
+  
+  // Parse DATABASE_URL to show connection details (without password)
+  const urlMatch = databaseUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/([^?]+)/);
+  const connectionInfo = urlMatch 
+    ? {
+        user: urlMatch[1],
+        host: urlMatch[3],
+        port: urlMatch[4],
+        database: urlMatch[5],
+      }
+    : null;
+  
+  // Get troubleshooting message based on error code
+  const troubleshootingMessages: Record<string, string> = {
+    P1001: 'Cannot reach database server. Check if PostgreSQL is running and accessible.',
+    P1003: 'Database does not exist. Create the database or check the database name in DATABASE_URL.',
+    P1000: 'Authentication failed. Check username and password in DATABASE_URL.',
+    default: 'Check your DATABASE_URL format: postgresql://user:password@host:port/database',
+  };
+  
+  const troubleshooting = errorCode && troubleshootingMessages[errorCode] 
+    ? troubleshootingMessages[errorCode]
+    : troubleshootingMessages.default || 'Unknown database connection error. Check your DATABASE_URL and PostgreSQL server status.';
+  
+  logger.error('Database connection failed after all retries', {
+    errorCode,
+    errorMessage,
+    connectionInfo,
+    troubleshooting,
+    totalAttempts: maxRetries,
+  });
+  
+  // Provide helpful suggestions based on error code
+  if (errorCode === 'P1003') {
+    logger.error('Database does not exist. To create it, run:', {
+      command: `psql -U ${connectionInfo?.user || 'postgres'} -h ${connectionInfo?.host || 'localhost'} -c "CREATE DATABASE ${connectionInfo?.database || 'digitalizePOS_licenses'};"`,
+      alternative: `Or use: npx prisma migrate dev (this will create the database if it doesn't exist)`,
+    });
+  }
+  
+  throw lastError;
 };
 
 // Graceful shutdown
