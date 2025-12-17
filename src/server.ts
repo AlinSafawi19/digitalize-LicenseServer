@@ -125,29 +125,57 @@ const startServer = async () => {
     if (process.env.NODE_ENV === 'production') {
       try {
         logger.info('Running database migrations...');
+        // Disconnect before migrations to avoid connection conflicts
+        // The migration command will create its own connection
+        try {
+          await prisma.$disconnect();
+          logger.info('Disconnected before migrations');
+        } catch (disconnectError) {
+          // Ignore - connection might already be closed or not connected
+          logger.debug('Error during pre-migration disconnect (ignored)', {
+            error: disconnectError instanceof Error ? disconnectError.message : String(disconnectError)
+          });
+        }
+        
         execSync('npx prisma migrate deploy', { 
           stdio: 'inherit',
           env: { ...process.env }
         });
         logger.info('Database migrations completed successfully');
         
-        // Verify database connection is still active after migrations
-        // This ensures the Prisma client connection pool is healthy
+        // Wait a moment for any connection cleanup to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Reconnect after migrations (migrations use a separate Prisma client)
+        logger.info('Reconnecting to database after migrations...');
+        await connectDatabase(true);
+        
+        // Verify the connection is working
         try {
           await prisma.$queryRaw`SELECT 1`;
           logger.info('Database connection verified after migrations');
         } catch (connectionError) {
-          logger.warn('Database connection check failed after migrations, reconnecting...', {
+          logger.error('Database connection verification failed after migrations', {
             error: connectionError instanceof Error ? connectionError.message : String(connectionError)
           });
-          // Reconnect if connection was lost
-          await connectDatabase();
+          // Try one more time
+          await connectDatabase(true);
+          await prisma.$queryRaw`SELECT 1`;
+          logger.info('Database connection verified after retry');
         }
       } catch (migrationError: unknown) {
         const errorMessage = migrationError instanceof Error ? migrationError.message : String(migrationError);
         logger.warn('Database migration warning', { 
           error: errorMessage 
         });
+        // Reconnect even if migrations had warnings
+        try {
+          await connectDatabase(true);
+        } catch (reconnectError) {
+          logger.error('Failed to reconnect after migrations', {
+            error: reconnectError instanceof Error ? reconnectError.message : String(reconnectError)
+          });
+        }
         // Don't exit - migrations might have already been applied
         // Server will start and show actual errors if tables are missing
       }

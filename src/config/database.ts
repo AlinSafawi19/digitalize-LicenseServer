@@ -85,8 +85,22 @@ if (process.env.NODE_ENV === 'production' || process.env.ENABLE_POOL_MONITORING 
 // Handle Prisma connection on first use
 let isConnected = false;
 
-export const connectDatabase = async (): Promise<void> => {
-  if (isConnected) return;
+export const connectDatabase = async (forceReconnect: boolean = false): Promise<void> => {
+  // If already connected and not forcing reconnect, return early
+  if (isConnected && !forceReconnect) return;
+  
+  // If forcing reconnect, disconnect first
+  if (forceReconnect && isConnected) {
+    try {
+      await prisma.$disconnect();
+      isConnected = false;
+      logger.info('Disconnected from database for reconnection');
+    } catch (disconnectError) {
+      // Ignore disconnect errors - connection might already be closed
+      logger.debug('Error during disconnect (ignored)', { error: disconnectError });
+      isConnected = false;
+    }
+  }
   
   // Validate DATABASE_URL is set
   if (!databaseUrl || databaseUrl.trim() === '') {
