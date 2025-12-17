@@ -107,6 +107,8 @@ export interface LicenseSummary {
     subscriptions: number;
     payments: number;
   };
+  // Count of active activations to determine if license has been activated
+  activeActivationsCount?: number;
 }
 
 /**
@@ -1065,6 +1067,52 @@ export class LicenseService {
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
 
+    // If not including full relations, fetch active activations count for each license
+    // This allows frontend to show "Not Activated" indicator without loading full activations array
+    if (!includeRelations && licenses.length > 0) {
+      const licenseIds = licenses.map((l: { id: number }) => l.id);
+      const activeActivationsCounts = await prisma.activation.groupBy({
+        by: ['licenseId'],
+        where: {
+          licenseId: { in: licenseIds },
+          isActive: true,
+        },
+        _count: {
+          id: true,
+        },
+      });
+
+      // Create a map of licenseId -> activeActivationsCount
+      const activeCountsMap = new Map<number, number>();
+      activeActivationsCounts.forEach((item) => {
+        activeCountsMap.set(item.licenseId, item._count.id);
+      });
+
+      // Add activeActivationsCount to each license
+      const licensesWithActivationCount = licenses.map((license) => ({
+        ...license,
+        activeActivationsCount: activeCountsMap.get(license.id) || 0,
+      }));
+
+      return {
+        data: licensesWithActivationCount as (LicenseWithDetails | LicenseSummary)[],
+        pagination: {
+          page,
+          pageSize,
+          totalItems,
+          totalPages,
+          hasNextPage,
+          hasPreviousPage,
+        },
+        meta: {
+          sortBy: sortField,
+          sortOrder,
+          search: params.search,
+          status: params.status,
+        },
+      };
+    }
+
     const result = {
       data: licenses as (LicenseWithDetails | LicenseSummary)[],
       pagination: {
@@ -1150,6 +1198,7 @@ export class LicenseService {
               userLimit: true,
               locationName: true,
               locationAddress: true,
+              version: true,
               createdAt: true,
               updatedAt: true,
               _count: {
@@ -1161,6 +1210,33 @@ export class LicenseService {
               },
             },
           })) as (LicenseWithDetails | LicenseSummary)[];
+
+      // If not including full relations, add activeActivationsCount to cached results
+      if (!includeRelations && allLicensesForCache && allLicensesForCache.length > 0) {
+        const licenseIds = allLicensesForCache.map((l: { id: number }) => l.id);
+        const activeActivationsCounts = await prisma.activation.groupBy({
+          by: ['licenseId'],
+          where: {
+            licenseId: { in: licenseIds },
+            isActive: true,
+          },
+          _count: {
+            id: true,
+          },
+        });
+
+        // Create a map of licenseId -> activeActivationsCount
+        const activeCountsMap = new Map<number, number>();
+        activeActivationsCounts.forEach((item) => {
+          activeCountsMap.set(item.licenseId, item._count.id);
+        });
+
+        // Add activeActivationsCount to each license in cache
+        allLicensesForCache = allLicensesForCache.map((license) => ({
+          ...license,
+          activeActivationsCount: activeCountsMap.get(license.id) || 0,
+        })) as (LicenseWithDetails | LicenseSummary)[];
+      }
 
       totalItemsForCache = totalItems;
 
