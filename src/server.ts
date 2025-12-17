@@ -156,31 +156,43 @@ const startServer = async () => {
     console.log('[SERVER] connectDatabase() completed');
     
     // Verify the connection is working
+    console.log('[SERVER] Verifying database connection...');
     try {
       await prisma.$queryRaw`SELECT 1`;
       logger.info('Database connection verified');
+      console.log('[SERVER] Database connection verified');
     } catch (connectionError) {
       logger.error('Database connection verification failed', {
         error: connectionError instanceof Error ? connectionError.message : String(connectionError)
       });
+      console.log('[SERVER] Database connection verification failed, attempting reconnect...');
       // Try reconnecting one more time
       logger.info('Attempting to reconnect...');
       await connectDatabase(true);
       await prisma.$queryRaw`SELECT 1`;
       logger.info('Database connection verified after retry');
+      console.log('[SERVER] Database connection verified after retry');
     }
     
     // Run initial seed if no admin exists (safe to run multiple times)
+    console.log('[SERVER] Running initial seed...');
+    logger.info('Running initial seed...');
     await SeedService.runInitialSeed();
+    console.log('[SERVER] Initial seed completed');
     
     // Start scheduled tasks (subscription expiration updates, etc.)
+    console.log('[SERVER] Starting scheduler service...');
+    logger.info('Starting scheduler service...');
     await SchedulerService.start();
+    console.log('[SERVER] Scheduler service started');
     
+    console.log(`[SERVER] Starting server on port ${PORT}...`);
     app.listen(PORT, () => {
       logger.info(`Server is running on port ${PORT}`, {
         port: PORT,
         environment: process.env.NODE_ENV || 'development',
       });
+      console.log(`[SERVER] ✅ Server is running on port ${PORT}`);
     }).on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'EADDRINUSE') {
         logger.error(`Port ${PORT} is already in use. Please stop the process using this port or change the PORT environment variable.`, {
