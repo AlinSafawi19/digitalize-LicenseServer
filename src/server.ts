@@ -123,19 +123,26 @@ const startServer = async () => {
     if (process.env.NODE_ENV === 'production') {
       try {
         logger.info('Running database migrations...');
+        console.log('[SERVER] Running database migrations...');
         execSync('npx prisma migrate deploy', { 
           stdio: 'inherit',
           env: { ...process.env }
         });
         logger.info('Database migrations completed successfully');
+        console.log('[SERVER] Database migrations completed successfully');
         
         // Wait a moment for any connection cleanup to complete
+        logger.info('Waiting for connection cleanup...');
+        console.log('[SERVER] Waiting for connection cleanup...');
         await new Promise(resolve => setTimeout(resolve, 2000));
+        logger.info('Connection cleanup wait completed');
+        console.log('[SERVER] Connection cleanup wait completed');
       } catch (migrationError: unknown) {
         const errorMessage = migrationError instanceof Error ? migrationError.message : String(migrationError);
         logger.warn('Database migration warning', { 
           error: errorMessage 
         });
+        console.log('[SERVER] Database migration warning:', errorMessage);
         // Don't exit - migrations might have already been applied
         // Server will start and show actual errors if tables are missing
       }
@@ -144,7 +151,9 @@ const startServer = async () => {
     // Connect to database AFTER migrations
     // This ensures we have a fresh connection after migrations complete
     logger.info('Connecting to database...');
+    console.log('[SERVER] Connecting to database...');
     await connectDatabase();
+    console.log('[SERVER] connectDatabase() completed');
     
     // Verify the connection is working
     try {

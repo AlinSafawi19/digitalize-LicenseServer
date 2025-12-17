@@ -114,14 +114,20 @@ export const connectDatabase = async (forceReconnect: boolean = false): Promise<
   const baseDelay = 1000; // 1 second
   let lastError: unknown;
   
+  console.log('[DB] Starting connection attempt with retry logic...');
+  logger.info('Starting database connection with retry logic', { forceReconnect });
+  
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      console.log(`[DB] Connection attempt ${attempt}/${maxRetries}...`);
+      logger.debug(`Database connection attempt ${attempt}/${maxRetries}`);
       await prisma.$connect();
       isConnected = true;
       logger.info('Database connected successfully', {
         attempt,
         totalAttempts: attempt > 1 ? attempt : undefined,
       });
+      console.log(`[DB] Database connected successfully on attempt ${attempt}`);
       return; // Success - exit function
     } catch (error: unknown) {
       lastError = error;
