@@ -13,6 +13,7 @@ import healthRoutes from './routes/health.routes';
 import apiRoutes from './routes/api';
 import metricsRoutes from './routes/metrics.routes';
 import { connectDatabase } from './config/database';
+import prisma from './config/database';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 import { SchedulerService } from './services/scheduler.service';
@@ -28,6 +29,11 @@ import { execSync } from 'child_process';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Trust proxy - Required when behind a reverse proxy (Railway, Vercel, etc.)
+// This allows Express to properly read X-Forwarded-For headers for rate limiting
+// Set to true in production environments where the app is behind a proxy
+app.set('trust proxy', process.env.NODE_ENV === 'production' ? true : 1);
 
 // Security Middleware (order matters!)
 // 1. HTTPS enforcement (in production)
@@ -124,6 +130,19 @@ const startServer = async () => {
           env: { ...process.env }
         });
         logger.info('Database migrations completed successfully');
+        
+        // Verify database connection is still active after migrations
+        // This ensures the Prisma client connection pool is healthy
+        try {
+          await prisma.$queryRaw`SELECT 1`;
+          logger.info('Database connection verified after migrations');
+        } catch (connectionError) {
+          logger.warn('Database connection check failed after migrations, reconnecting...', {
+            error: connectionError instanceof Error ? connectionError.message : String(connectionError)
+          });
+          // Reconnect if connection was lost
+          await connectDatabase();
+        }
       } catch (migrationError: unknown) {
         const errorMessage = migrationError instanceof Error ? migrationError.message : String(migrationError);
         logger.warn('Database migration warning', { 
