@@ -37,9 +37,9 @@ export class LicenseController {
         version: req.body.version || 'grocery',
       };
 
-      // Skip verification for free trials from marketing website (verification happens after license creation)
-      const skipVerification = input.isFreeTrial === true;
-      const license = await LicenseService.createLicense(input, skipVerification);
+      // Phone verification is no longer required before creating a license.
+      // Free trials and paid licenses are created the same way here.
+      const license = await LicenseService.createLicense(input);
 
       logger.info('License generated successfully', {
         licenseId: license.id,

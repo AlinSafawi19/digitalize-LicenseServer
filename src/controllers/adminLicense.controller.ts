@@ -126,8 +126,8 @@ export class AdminLicenseController {
         version: req.body.version || 'grocery',
       };
 
-      // Admin can skip phone verification if needed (for trusted admin operations)
-      const license = await LicenseService.createLicense(input, true);
+      // Phone verification is no longer required before creating a license.
+      const license = await LicenseService.createLicense(input);
 
       logger.info('Admin created license', {
         adminId: req.admin?.id,

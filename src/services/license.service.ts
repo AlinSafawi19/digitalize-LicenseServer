@@ -125,7 +125,7 @@ export class LicenseService {
    * @param input License creation data
    * @returns Promise<LicenseWithDetails> Created license with details
    */
-  static async createLicense(input: CreateLicenseInput, skipVerification: boolean = false): Promise<LicenseWithDetails> {
+  static async createLicense(input: CreateLicenseInput): Promise<LicenseWithDetails> {
     // Check for duplicate license with same phone and location name (case-insensitive)
     if (input.customerPhone && input.locationName) {
       const normalizedPhone = input.customerPhone.trim().replace(/\D/g, '');
