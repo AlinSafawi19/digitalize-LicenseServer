@@ -519,5 +519,35 @@ export class LicenseController {
       ResponseUtil.error(res, errorMessage, 500);
     }
   }
+
+  /**
+   * Roll back a license activation when POS-side activation fails
+   * POST /api/license/rollback-activation
+   */
+  static async rollbackActivation(req: Request, res: Response): Promise<void> {
+    try {
+      const { licenseKey, hardwareId } = req.body;
+
+      if (!licenseKey || !hardwareId) {
+        ResponseUtil.error(res, 'License key and hardware ID are required', 400);
+        return;
+      }
+
+      const result = await PublicLicenseService.rollbackActivation({
+        licenseKey,
+        hardwareId,
+      });
+
+      if (result.success) {
+        ResponseUtil.success(res, result, result.message, 200);
+      } else {
+        ResponseUtil.error(res, result.message, 400);
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to roll back activation';
+      logger.error('Error rolling back activation', { error: errorMessage });
+      ResponseUtil.error(res, errorMessage, 500);
+    }
+  }
 }
 

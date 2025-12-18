@@ -913,5 +913,104 @@ export class PublicLicenseService {
       };
     }
   }
+
+  /**
+   * Roll back a license activation when POS-side activation fails.
+   * Used by the POS app if local user creation or database initialization fails
+   * after the server has already created an activation record.
+   *
+   * Behavior:
+   * - Deactivates the activation for the given licenseKey + hardwareId (if it exists)
+   * - If this was effectively the first activation (userCount <= 1), resets userCount back to 0
+   *   so that the license can be cleanly activated again.
+   */
+  static async rollbackActivation(input: {
+    licenseKey: string;
+    hardwareId: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      const normalizedKey = LicenseKeyGeneratorService.normalizeLicenseKey(input.licenseKey);
+
+      const license = await LicenseService.findLicenseByKey(normalizedKey);
+      if (!license) {
+        return {
+          success: false,
+          message: 'License key is invalid',
+        };
+      }
+
+      // Find active activation for this license + hardwareId
+      const activation = await prisma.activation.findFirst({
+        where: {
+          licenseId: license.id,
+          hardwareId: input.hardwareId,
+          isActive: true,
+        },
+      });
+
+      if (!activation) {
+        // Nothing to roll back – treat as success so client logic can continue
+        logger.info('No active activation found to roll back', {
+          licenseId: license.id,
+          licenseKey: license.licenseKey,
+          hardwareId: input.hardwareId,
+        });
+
+        return {
+          success: true,
+          message: 'No active activation found to roll back',
+        };
+      }
+
+      // Perform rollback in a transaction
+      await prisma.$transaction(async (tx) => {
+        // Deactivate this activation
+        await tx.activation.update({
+          where: { id: activation.id },
+          data: {
+            isActive: false,
+          },
+        });
+
+        // If this was effectively the first activation (userCount <= 1),
+        // reset userCount back to 0 so license can be activated cleanly again.
+        if (license.userCount <= 1) {
+          await tx.license.update({
+            where: { id: license.id },
+            data: {
+              userCount: 0,
+            },
+          });
+        }
+      });
+
+      logger.info('License activation rolled back due to POS activation failure', {
+        licenseId: license.id,
+        licenseKey: license.licenseKey,
+        hardwareId: input.hardwareId,
+        previousUserCount: license.userCount,
+      });
+
+      return {
+        success: true,
+        message: 'Activation rolled back successfully',
+      };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error rolling back activation', {
+        error: errorMessage,
+        licenseKey: input.licenseKey,
+        hardwareId: input.hardwareId,
+      });
+
+      return {
+        success: false,
+        message: errorMessage || 'Failed to roll back activation',
+      };
+    }
+  }
 }
 
