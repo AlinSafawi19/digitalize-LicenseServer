@@ -126,20 +126,6 @@ export class LicenseService {
    * @returns Promise<LicenseWithDetails> Created license with details
    */
   static async createLicense(input: CreateLicenseInput, skipVerification: boolean = false): Promise<LicenseWithDetails> {
-    // Verify phone number if provided (skip for admin-created licenses if explicitly allowed)
-    if (input.customerPhone && !skipVerification) {
-      const isVerified = await PhoneVerificationService.isPhoneVerified(
-        input.customerPhone,
-        input.verificationToken
-      );
-
-      if (!isVerified) {
-        throw new Error(
-          'Phone number must be verified before creating a license. Please verify your phone number first.'
-        );
-      }
-    }
-
     // Check for duplicate license with same phone and location name (case-insensitive)
     if (input.customerPhone && input.locationName) {
       const normalizedPhone = input.customerPhone.trim().replace(/\D/g, '');
