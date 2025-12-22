@@ -139,3 +139,14 @@ model PhoneVerification {
   @@index([verified])
   @@index([phone, verified])
 }
+
+model Preferences {
+  id            Int       @id @default(autoincrement())
+  general       Json      @default("{\"phoneNumberVerification\":true}")
+  customer      Json      @default("{}")
+  licenseTypeVersion Json @default("{}")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([id])
+}

@@ -1,7 +1,6 @@
 import { logger } from '../utils/logger';
 import { config } from '../config/config';
 import twilio from 'twilio';
-import axios, { AxiosError } from 'axios';
 
 export interface WhatsAppCredentials {
   username: string;
@@ -39,24 +38,25 @@ export interface LicenseDetailsWhatsAppData {
 export class WhatsAppService {
   /**
    * Send OTP for phone verification
+   * Returns an object with success status and error details if failed
    */
-  static async sendOTP(to: string, message: string): Promise<boolean> {
+  static async sendOTP(to: string, message: string): Promise<{ success: boolean; error?: { message: string; code?: number; status?: number; details?: unknown; moreInfo?: string } }> {
     try {
       if (!config.whatsappEnabled) {
         logger.warn('WhatsApp service not available, skipping OTP send', { to });
-        return false;
+        return { success: false, error: { message: 'WhatsApp service is not enabled' } };
       }
 
-      const success = await this.sendWhatsAppMessage(to, message);
+      const result = await this.sendWhatsAppMessage(to, message);
       
-      if (success) {
+      if (result.success) {
         logger.info('OTP WhatsApp message sent successfully', {
           to,
         });
-        return true;
+        return { success: true };
       } else {
-        logger.warn('Failed to send OTP WhatsApp message', { to });
-        return false;
+        logger.warn('Failed to send OTP WhatsApp message', { to, error: result.error });
+        return { success: false, error: result.error };
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -64,7 +64,7 @@ export class WhatsAppService {
         to,
         error: errorMessage,
       });
-      return false;
+      return { success: false, error: { message: errorMessage } };
     }
   }
 
@@ -83,15 +83,15 @@ export class WhatsAppService {
 
       const message = this.getActivationMessage(credentials);
       
-      const success = await this.sendWhatsAppMessage(to, message);
+      const result = await this.sendWhatsAppMessage(to, message);
       
-      if (success) {
+      if (result.success) {
         logger.info('Activation credentials WhatsApp message sent successfully', {
           to,
         });
         return true;
       } else {
-        logger.warn('Failed to send activation credentials WhatsApp message', { to });
+        logger.warn('Failed to send activation credentials WhatsApp message', { to, error: result.error });
         return false;
       }
     } catch (error: unknown) {
@@ -155,9 +155,9 @@ This is an automated message from DigitalizePOS.`;
       }
 
       const message = this.getLicenseDetailsMessage(data);
-      const success = await this.sendWhatsAppMessage(data.customerPhone, message);
+      const result = await this.sendWhatsAppMessage(data.customerPhone, message);
       
-      if (success) {
+      if (result.success) {
         logger.info('License details WhatsApp message sent successfully', {
           to: data.customerPhone,
           licenseKey: data.licenseKey,
@@ -166,6 +166,7 @@ This is an automated message from DigitalizePOS.`;
       } else {
         logger.warn('Failed to send license details WhatsApp message', {
           to: data.customerPhone,
+          error: result.error,
         });
         return false;
       }
@@ -237,9 +238,9 @@ This is an automated message from DigitalizePOS.`;
       }
 
       const message = this.getExpirationWarningMessage(data);
-      const success = await this.sendWhatsAppMessage(data.customerPhone, message);
+      const result = await this.sendWhatsAppMessage(data.customerPhone, message);
       
-      if (success) {
+      if (result.success) {
         logger.info('Expiration warning WhatsApp message sent successfully', {
           to: data.customerPhone,
           licenseKey: data.licenseKey,
@@ -249,6 +250,7 @@ This is an automated message from DigitalizePOS.`;
       } else {
         logger.warn('Failed to send expiration warning WhatsApp message', {
           to: data.customerPhone,
+          error: result.error,
         });
         return false;
       }
@@ -278,9 +280,9 @@ This is an automated message from DigitalizePOS.`;
       }
 
       const message = this.getExpirationNotificationMessage(data);
-      const success = await this.sendWhatsAppMessage(data.customerPhone, message);
+      const result = await this.sendWhatsAppMessage(data.customerPhone, message);
       
-      if (success) {
+      if (result.success) {
         logger.info('Expiration notification WhatsApp message sent successfully', {
           to: data.customerPhone,
           licenseKey: data.licenseKey,
@@ -289,6 +291,7 @@ This is an automated message from DigitalizePOS.`;
       } else {
         logger.warn('Failed to send expiration notification WhatsApp message', {
           to: data.customerPhone,
+          error: result.error,
         });
         return false;
       }
@@ -393,16 +396,28 @@ This is an automated message from DigitalizePOS.`;
   /**
    * Send WhatsApp message via API
    * Supports Twilio and generic HTTP API providers
+   * Returns an object with success status and error details if failed
    */
-  private static async sendWhatsAppMessage(to: string, message: string): Promise<boolean> {
+  private static async sendWhatsAppMessage(to: string, message: string): Promise<{ success: boolean; error?: { message: string; code?: number; status?: number; details?: unknown; moreInfo?: string } }> {
     try {
       // Format phone number (remove any non-digit characters except +)
       const phoneNumber = this.formatPhoneNumber(to);
       
-      // Validate phone number
-      if (!phoneNumber || phoneNumber.length < 10) {
-        logger.error('Invalid phone number format', { to, phoneNumber });
-        return false;
+      // Validate phone number (E.164 format: + followed by at least 8 digits)
+      if (!phoneNumber || !phoneNumber.startsWith('+') || phoneNumber.length < 9) {
+        const errorMsg = 'Invalid phone number format (must be E.164: +[country code][number])';
+        logger.error(errorMsg, { 
+          to, 
+          phoneNumber,
+          expectedFormat: 'E.164 (e.g., +9611234567 or +1234567890)'
+        });
+        return { 
+          success: false, 
+          error: { 
+            message: errorMsg,
+            details: { original: to, formatted: phoneNumber, expectedFormat: 'E.164 (e.g., +9611234567 or +1234567890)' }
+          } 
+        };
       }
 
       // Check if Twilio credentials are configured
@@ -410,51 +425,89 @@ This is an automated message from DigitalizePOS.`;
         return await this.sendViaTwilio(phoneNumber, message);
       }
 
-      // Check if custom API URL is configured
-      if (config.whatsappApiUrl) {
-        return await this.sendViaCustomAPI(phoneNumber, message);
-      }
-
       // No provider configured
-      logger.error('No WhatsApp provider configured. Please configure either Twilio or custom API settings.', {
-        hasTwilio: !!(config.whatsappAccountSid && config.whatsappAuthToken && config.whatsappFromNumber),
-        hasCustomAPI: !!config.whatsappApiUrl,
+      const errorMsg = 'No WhatsApp provider configured. Please configure either Twilio or custom API settings.';
+      logger.error(errorMsg, {
+        hasTwilio: !!(config.whatsappAccountSid && config.whatsappAuthToken && config.whatsappFromNumber)
       });
-      return false;
+      return { 
+        success: false, 
+        error: { 
+          message: errorMsg,
+          details: {
+            hasTwilio: !!(config.whatsappAccountSid && config.whatsappAuthToken && config.whatsappFromNumber)
+          }
+        } 
+      };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Error sending WhatsApp message', {
         to,
         error: errorMessage,
       });
-      return false;
+      return { success: false, error: { message: errorMessage } };
     }
   }
 
   /**
    * Send WhatsApp message via Twilio
+   * Returns an object with success status and error details if failed
    */
-  private static async sendViaTwilio(to: string, message: string): Promise<boolean> {
+  private static async sendViaTwilio(to: string, message: string): Promise<{ success: boolean; error?: { message: string; code?: number; status?: number; details?: unknown; moreInfo?: string } }> {
     try {
       if (!config.whatsappAccountSid || !config.whatsappAuthToken || !config.whatsappFromNumber) {
-        logger.error('Twilio credentials incomplete', {
+        const errorMsg = 'Twilio credentials incomplete';
+        logger.error(errorMsg, {
           hasAccountSid: !!config.whatsappAccountSid,
           hasAuthToken: !!config.whatsappAuthToken,
           hasFromNumber: !!config.whatsappFromNumber,
         });
-        return false;
+        return { 
+          success: false, 
+          error: { 
+            message: errorMsg,
+            details: {
+              hasAccountSid: !!config.whatsappAccountSid,
+              hasAuthToken: !!config.whatsappAuthToken,
+              hasFromNumber: !!config.whatsappFromNumber,
+            }
+          } 
+        };
       }
 
       const client = twilio(config.whatsappAccountSid, config.whatsappAuthToken);
       
       // Format phone numbers for Twilio WhatsApp
-      const fromNumber = config.whatsappFromNumber.startsWith('whatsapp:')
-        ? config.whatsappFromNumber
-        : `whatsapp:${config.whatsappFromNumber}`;
+      // Ensure FROM number is in E.164 format before adding whatsapp: prefix
+      const fromNumberFormatted = config.whatsappFromNumber.startsWith('whatsapp:')
+        ? config.whatsappFromNumber.replace('whatsapp:', '')
+        : config.whatsappFromNumber;
+      const fromNumberE164 = this.formatPhoneNumber(fromNumberFormatted);
+      const fromNumber = `whatsapp:${fromNumberE164}`;
       
-      const toNumber = to.startsWith('whatsapp:')
-        ? to
-        : `whatsapp:${to}`;
+      // Ensure TO number is in E.164 format before adding whatsapp: prefix
+      const toNumberFormatted = to.startsWith('whatsapp:')
+        ? to.replace('whatsapp:', '')
+        : to;
+      const toNumberE164 = this.formatPhoneNumber(toNumberFormatted);
+      
+      // Validate E.164 format (must start with + and have at least 8 digits after +)
+      if (!toNumberE164.startsWith('+') || toNumberE164.length < 9) {
+        const errorMsg = 'Invalid phone number format for Twilio WhatsApp (must be E.164)';
+        logger.error(errorMsg, {
+          original: to,
+          formatted: toNumberE164,
+        });
+        return { 
+          success: false, 
+          error: { 
+            message: errorMsg,
+            details: { original: to, formatted: toNumberE164 }
+          } 
+        };
+      }
+      
+      const toNumber = `whatsapp:${toNumberE164}`;
 
       logger.debug('Sending WhatsApp message via Twilio', {
         to: toNumber,
@@ -474,120 +527,116 @@ This is an automated message from DigitalizePOS.`;
           messageSid: result.sid,
           status: result.status,
         });
-        return true;
+        return { success: true };
       } else {
-        logger.warn('Twilio message created but no SID returned', {
+        const errorMsg = 'Twilio message created but no SID returned';
+        logger.warn(errorMsg, {
           to: toNumber,
           status: result.status,
         });
-        return false;
+        return { 
+          success: false, 
+          error: { 
+            message: errorMsg,
+            details: { status: result.status }
+          } 
+        };
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const twilioError = error as { code?: number; status?: number; message?: string };
+      const twilioError = error as { 
+        code?: number; 
+        status?: number; 
+        message?: string;
+        moreInfo?: string;
+      };
       
-      logger.error('Failed to send WhatsApp message via Twilio', {
-        to,
-        error: errorMessage,
+      // Build error details
+      const errorDetails: {
+        message: string;
+        code?: number;
+        status?: number;
+        moreInfo?: string;
+        details?: unknown;
+      } = {
+        message: twilioError.message || errorMessage,
         code: twilioError.code,
         status: twilioError.status,
-      });
-      return false;
-    }
-  }
-
-  /**
-   * Send WhatsApp message via custom HTTP API
-   */
-  private static async sendViaCustomAPI(to: string, message: string): Promise<boolean> {
-    try {
-      if (!config.whatsappApiUrl) {
-        logger.error('Custom WhatsApp API URL not configured');
-        return false;
-      }
-
-      logger.debug('Sending WhatsApp message via custom API', {
-        to,
-        apiUrl: config.whatsappApiUrl,
-        messageLength: message.length,
-      });
-
-      // Prepare request payload
-      // Adjust this structure based on your API provider's requirements
-      const payload = {
-        to,
-        message,
-        from: config.whatsappFromNumber || undefined,
       };
-
-      // Prepare headers
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      // Add API key if provided
-      if (config.whatsappApiKey) {
-        headers['Authorization'] = `Bearer ${config.whatsappApiKey}`;
-        // Alternative: Some APIs use X-API-Key header
-        // headers['X-API-Key'] = config.whatsappApiKey;
-      }
-
-      const response = await axios.post(config.whatsappApiUrl, payload, {
-        headers,
-        timeout: 30000, // 30 second timeout
-      });
-
-      // Check if request was successful
-      // Adjust this based on your API provider's response format
-      const success = response.status >= 200 && response.status < 300;
       
-      if (success) {
-        logger.info('WhatsApp message sent successfully via custom API', {
-          to,
-          status: response.status,
-          responseData: response.data,
-        });
-        return true;
-      } else {
-        logger.warn('Custom API returned non-success status', {
-          to,
-          status: response.status,
-          responseData: response.data,
-        });
-        return false;
+      // Add more info if available
+      if (twilioError.moreInfo) {
+        errorDetails.moreInfo = twilioError.moreInfo;
       }
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError;
-        logger.error('Failed to send WhatsApp message via custom API', {
-          to,
-          status: axiosError.response?.status,
-          statusText: axiosError.response?.statusText,
-          error: axiosError.message,
-          responseData: axiosError.response?.data,
-        });
+      
+      // Provide helpful error messages for common issues
+      if (twilioError.code === 21211) {
+        errorDetails.message = 'Invalid phone number format for Twilio WhatsApp';
+        logger.error(errorDetails.message, { to, code: twilioError.code, status: twilioError.status });
+      } else if (twilioError.code === 21608) {
+        errorDetails.message = 'Unsubscribed recipient - user has opted out of WhatsApp messages';
+        logger.error(errorDetails.message, { to, code: twilioError.code });
+      } else if (twilioError.code === 21610) {
+        errorDetails.message = 'WhatsApp message template required - user not in 24-hour window';
+        logger.error(errorDetails.message, { to, code: twilioError.code });
+      } else if (twilioError.code === 63007) {
+        errorDetails.message = 'WhatsApp message cannot be sent - recipient may not be in allowed list or WhatsApp Business account not properly configured';
+        logger.error(errorDetails.message, { to, code: twilioError.code, status: twilioError.status });
+      } else if (twilioError.code === 63016) {
+        errorDetails.message = 'WhatsApp sender not registered or not approved for WhatsApp messaging';
+        logger.error(errorDetails.message, { to, code: twilioError.code });
+      } else if (twilioError.code === 63040) {
+        errorDetails.message = 'WhatsApp message template was rejected by WhatsApp';
+        logger.error(errorDetails.message, { to, code: twilioError.code });
+      } else if (twilioError.code === 63041) {
+        errorDetails.message = 'WhatsApp message template is paused due to quality concerns';
+        logger.error(errorDetails.message, { to, code: twilioError.code });
+      } else if (twilioError.status === 400) {
+        errorDetails.message = 'Bad request to Twilio WhatsApp API - check phone number format and message content';
+        logger.error(errorDetails.message, { to, status: twilioError.status, code: twilioError.code });
+      } else if (twilioError.status === 401) {
+        errorDetails.message = 'Twilio authentication failed - check Account SID and Auth Token';
+        logger.error(errorDetails.message, { to, status: twilioError.status });
+      } else if (twilioError.status === 403) {
+        errorDetails.message = 'Twilio access forbidden - check account permissions and WhatsApp sender approval';
+        logger.error(errorDetails.message, { to, status: twilioError.status });
       } else {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error('Failed to send WhatsApp message via custom API', {
-          to,
-          error: errorMessage,
-        });
+        logger.error('Failed to send WhatsApp message via Twilio', { to, error: errorMessage, code: twilioError.code, status: twilioError.status });
       }
-      return false;
+      
+      return { success: false, error: errorDetails };
     }
   }
 
   /**
-   * Format phone number for WhatsApp
-   * Removes non-digit characters except + at the start
+   * Format phone number for WhatsApp (E.164 format required by Twilio)
+   * Ensures phone number is in E.164 format: +[country code][number]
+   * Example: +9611234567 or +1234567890
    */
   private static formatPhoneNumber(phone: string): string {
-    // Remove all non-digit characters except + at the start
+    // Remove all whitespace
     const cleaned = phone.trim();
+    
+    // If already starts with +, keep it and remove all non-digits after
     if (cleaned.startsWith('+')) {
-      return '+' + cleaned.slice(1).replace(/\D/g, '');
+      const digits = cleaned.slice(1).replace(/\D/g, '');
+      // Ensure we have at least country code + number (minimum 8 digits total)
+      if (digits.length >= 8) {
+        return '+' + digits;
+      }
     }
-    return cleaned.replace(/\D/g, '');
+    
+    // If no + prefix, remove all non-digits
+    const digits = cleaned.replace(/\D/g, '');
+    
+    // If we have digits but no +, check if it looks like a valid number
+    if (digits.length >= 8) {
+      // Assume it needs a + prefix for E.164 format
+      return '+' + digits;
+    }
+    
+    // Return as-is if we can't format it properly (will be caught by validation)
+    return cleaned;
   }
 
   /**
@@ -603,9 +652,8 @@ This is an automated message from DigitalizePOS.`;
 
       // Check if at least one provider is configured
       const hasTwilio = !!(config.whatsappAccountSid && config.whatsappAuthToken && config.whatsappFromNumber);
-      const hasCustomAPI = !!config.whatsappApiUrl;
 
-      if (!hasTwilio && !hasCustomAPI) {
+      if (!hasTwilio) {
         logger.error('No WhatsApp provider configured. Please configure either Twilio or custom API settings.');
         return false;
       }
@@ -621,40 +669,6 @@ This is an automated message from DigitalizePOS.`;
         } catch (error: unknown) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           logger.error('Twilio configuration verification failed', { error: errorMessage });
-          return false;
-        }
-      }
-
-      // Verify custom API if configured
-      if (hasCustomAPI) {
-        try {
-          // Try to make a simple request to verify the API is accessible
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-          };
-
-          if (config.whatsappApiKey) {
-            headers['Authorization'] = `Bearer ${config.whatsappApiKey}`;
-          }
-
-          // Some APIs have a health/status endpoint, adjust URL as needed
-          const healthUrl = config.whatsappApiUrl.replace(/\/send$/, '/health').replace(/\/message$/, '/health');
-          
-          try {
-            await axios.get(healthUrl, { headers, timeout: 10000 });
-            logger.info('Custom WhatsApp API configuration verified successfully');
-            return true;
-          } catch (healthError) {
-            // If health endpoint doesn't exist, that's okay - just log it
-            logger.debug('Health endpoint not available, but API URL is configured', {
-              healthUrl,
-            });
-            logger.info('Custom WhatsApp API URL configured (health check skipped)');
-            return true;
-          }
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          logger.error('Custom WhatsApp API configuration verification failed', { error: errorMessage });
           return false;
         }
       }

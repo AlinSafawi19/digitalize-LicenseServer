@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import licenseRoutes from './license.routes';
 import phoneVerificationRoutes from './phoneVerification.routes';
+import preferencesRoutes from './preferences.routes';
 import adminRoutes from './admin.routes';
 import adminLicenseRoutes from './adminLicense.routes';
 import adminActivationRoutes from './adminActivation.routes';
@@ -16,6 +17,9 @@ router.use(generalApiLimiter);
 
 // Phone verification routes
 router.use('/phone-verification', phoneVerificationRoutes);
+
+// Preferences routes
+router.use('/preferences', preferencesRoutes);
 
 // License routes
 router.use('/license', licenseRoutes);

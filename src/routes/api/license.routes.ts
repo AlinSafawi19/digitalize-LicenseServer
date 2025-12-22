@@ -658,5 +658,47 @@ router.post(
   LicenseController.syncUserCount
 );
 
+/**
+ * @swagger
+ * /api/license/test-whatsapp:
+ *   post:
+ *     summary: Test WhatsApp configuration and send a test message
+ *     tags: [License]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 format: tel
+ *                 example: +9611234567
+ *                 description: Phone number in E.164 format (e.g., +9611234567)
+ *               message:
+ *                 type: string
+ *                 example: Test message
+ *                 description: Optional custom test message
+ *     responses:
+ *       200:
+ *         description: Test message sent successfully
+ *       400:
+ *         description: Invalid request or configuration error
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  '/test-whatsapp',
+  validationLimiter,
+  [
+    validateCustomerPhone(), // Reuse phone validation
+  ],
+  handleValidationErrors,
+  LicenseController.testWhatsApp
+);
+
 export default router;
 

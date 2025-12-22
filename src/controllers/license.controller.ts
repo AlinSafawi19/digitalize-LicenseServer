@@ -549,5 +549,116 @@ export class LicenseController {
       ResponseUtil.error(res, errorMessage, 500);
     }
   }
+
+  /**
+   * Test WhatsApp configuration and send a test message
+   * POST /api/license/test-whatsapp
+   */
+  static async testWhatsApp(req: Request, res: Response): Promise<void> {
+    try {
+      const { phoneNumber, message } = req.body;
+
+      if (!phoneNumber) {
+        ResponseUtil.error(res, 'Phone number is required', 400);
+        return;
+      }
+
+      const testMessage = message || '🧪 This is a test message from DigitalizePOS License Server. WhatsApp integration is working correctly!';
+
+      // Format phone number to E.164 format (add + if missing)
+      let formattedPhone = phoneNumber.trim();
+      if (!formattedPhone.startsWith('+')) {
+        // Remove all non-digits and add +
+        const digits = formattedPhone.replace(/\D/g, '');
+        if (digits.length >= 8) {
+          formattedPhone = '+' + digits;
+        } else {
+          ResponseUtil.error(
+            res,
+            `Invalid phone number format. Phone number must have at least 8 digits. Received: ${phoneNumber}`,
+            400
+          );
+          return;
+        }
+      }
+
+      logger.info('Attempting to send test WhatsApp message', {
+        originalPhone: phoneNumber,
+        formattedPhone: formattedPhone,
+      });
+
+      // First verify configuration
+      const configValid = await WhatsAppService.verifyConfiguration();
+      if (!configValid) {
+        ResponseUtil.error(
+          res,
+          'WhatsApp configuration is invalid. Please check your environment variables (WHATSAPP_ACCOUNT_SID, WHATSAPP_AUTH_TOKEN, WHATSAPP_FROM_NUMBER).',
+          400,
+          {
+            phoneNumber: formattedPhone,
+            check: 'Verify all Twilio credentials are set in .env file',
+          }
+        );
+        return;
+      }
+
+      // Send test message
+      const result = await WhatsAppService.sendOTP(formattedPhone, testMessage);
+
+      if (result.success) {
+        ResponseUtil.success(
+          res,
+          { 
+            phoneNumber: formattedPhone, 
+            message: testMessage,
+            note: phoneNumber !== formattedPhone 
+              ? 'Phone number was automatically formatted to E.164 format' 
+              : 'Phone number was already in E.164 format'
+          },
+          'Test WhatsApp message sent successfully!',
+          200
+        );
+      } else {
+        // Provide detailed error information from the service
+        const errorInfo = result.error;
+        const errorMessage = errorInfo?.message || 'Failed to send test WhatsApp message';
+        
+        ResponseUtil.error(
+          res,
+          errorMessage,
+          500,
+          {
+            phoneNumber: formattedPhone,
+            originalPhone: phoneNumber,
+            errorCode: errorInfo?.code,
+            errorStatus: errorInfo?.status,
+            errorDetails: errorInfo?.details,
+            moreInfo: errorInfo?.moreInfo,
+            suggestions: [
+              'Check server logs for detailed Twilio error messages',
+              'Verify your Twilio WhatsApp number is approved and active',
+              'Ensure your Twilio account has sufficient credits',
+              'Verify the recipient phone number is valid and can receive WhatsApp messages',
+              'Check that your WhatsApp Business account is properly configured in Twilio',
+              errorInfo?.code === 21610 ? 'Note: For new conversations, you may need to use a message template approved by WhatsApp' : null,
+              errorInfo?.code === 21608 ? 'Note: The recipient has opted out of WhatsApp messages' : null,
+              errorInfo?.code === 63007 ? 'Note: Error 63007 - The recipient may not be in your allowed list. For test numbers, ensure they are added in Twilio Console under WhatsApp > Senders > Test Numbers' : null,
+              errorInfo?.code === 63007 ? 'Note: Your WhatsApp Business account may not be fully configured. Check Twilio Console for WhatsApp setup status' : null,
+              errorInfo?.code === 63016 ? 'Note: Your WhatsApp sender number is not registered or approved. Complete the WhatsApp Business registration in Twilio Console' : null,
+              errorInfo?.code === 63040 ? 'Note: Your message template was rejected. Check template status in Twilio Console and resubmit if needed' : null,
+              errorInfo?.code === 63041 ? 'Note: Your message template is paused. Review template quality issues in Twilio Console' : null,
+              errorInfo?.status === 401 ? 'Note: Check your Twilio Account SID and Auth Token' : null,
+              errorInfo?.status === 403 ? 'Note: Check your Twilio account permissions and WhatsApp sender approval' : null,
+              errorInfo?.moreInfo ? `More info: ${errorInfo.moreInfo}` : null,
+            ].filter(Boolean),
+          }
+        );
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send test WhatsApp message';
+      logger.error('Error sending test WhatsApp message', { error: errorMessage });
+      ResponseUtil.error(res, errorMessage, 500);
+    }
+  }
 }
 

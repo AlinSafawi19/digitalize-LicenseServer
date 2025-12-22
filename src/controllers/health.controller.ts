@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getSystemInfo, checkDatabaseHealth, getMemoryUsageMB } from '../utils/system.util';
 import { logger } from '../utils/logger';
+import { config } from '../config/config';
 
 /**
  * Health Check Controller
@@ -46,6 +47,11 @@ export const healthCheck = async (_req: Request, res: Response): Promise<void> =
         platform: systemInfo.platform,
         arch: systemInfo.arch,
         cpuCores: systemInfo.cpu.cores,
+      },
+      whatsapp: {
+        enabled: config.whatsappEnabled,
+        configured: !!(config.whatsappAccountSid && config.whatsappAuthToken && config.whatsappFromNumber) || !!config.whatsappApiUrl,
+        provider: config.whatsappAccountSid ? 'Twilio' : config.whatsappApiUrl ? 'Custom API' : 'None',
       },
     };
     
