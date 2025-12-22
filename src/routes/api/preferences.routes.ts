@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PreferencesController } from '../../controllers/preferences.controller';
-import { authMiddleware } from '../../middleware/auth.middleware';
+import { authenticateAdmin } from '../../middleware/auth.middleware';
 
 const router = Router();
 
@@ -47,7 +47,7 @@ const router = Router();
  *       500:
  *         description: Internal server error
  */
-router.get('/', authMiddleware, PreferencesController.getPreferences);
+router.get('/', authenticateAdmin, PreferencesController.getPreferences);
 
 /**
  * @swagger
@@ -113,7 +113,7 @@ router.get('/', authMiddleware, PreferencesController.getPreferences);
  *       500:
  *         description: Internal server error
  */
-router.patch('/', authMiddleware, PreferencesController.updatePreferences);
+router.patch('/', authenticateAdmin, PreferencesController.updatePreferences);
 
 export default router;
 

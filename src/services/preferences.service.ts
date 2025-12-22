@@ -1,5 +1,6 @@
 import prisma from '../config/database';
 import { logger } from '../utils/logger';
+import { Prisma } from '@prisma/client';
 
 export interface PreferencesData {
   general: {
@@ -94,9 +95,9 @@ export class PreferencesService {
         const result = await prisma.preferences.update({
           where: { id: existing.id },
           data: {
-            general: updated.general,
-            customer: updated.customer,
-            licenseTypeVersion: updated.licenseTypeVersion,
+            general: updated.general as Prisma.InputJsonValue,
+            customer: updated.customer as Prisma.InputJsonValue,
+            licenseTypeVersion: updated.licenseTypeVersion as Prisma.InputJsonValue,
           },
         });
 
@@ -109,9 +110,9 @@ export class PreferencesService {
         // Create new preferences
         const result = await prisma.preferences.create({
           data: {
-            general: updated.general,
-            customer: updated.customer,
-            licenseTypeVersion: updated.licenseTypeVersion,
+            general: updated.general as Prisma.InputJsonValue,
+            customer: updated.customer as Prisma.InputJsonValue,
+            licenseTypeVersion: updated.licenseTypeVersion as Prisma.InputJsonValue,
           },
         });
 

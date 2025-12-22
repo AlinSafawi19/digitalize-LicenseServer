@@ -12,7 +12,7 @@ export class PreferencesController {
    * Get preferences
    * GET /api/preferences
    */
-  static async getPreferences(req: Request, res: Response): Promise<void> {
+  static async getPreferences(_req: Request, res: Response): Promise<void> {
     try {
       const preferences = await PreferencesService.getPreferences();
       logger.info('Preferences retrieved successfully');

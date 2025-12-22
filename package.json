@@ -4,8 +4,9 @@
   "description": "DigitalizePOS License Server - License management, activation, validation, and payment processing",
   "main": "dist/src/server.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/server.ts",
-    "build": "prisma generate && tsc",
+    "dev": "node scripts/dev.js",
+    "kill-port": "node scripts/kill-port.js",
+    "build": "node scripts/build.js",
     "start": "node dist/src/server.js",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
