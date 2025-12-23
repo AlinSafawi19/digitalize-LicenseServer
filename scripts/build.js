@@ -43,33 +43,44 @@ function isFileLocked(filePath) {
 }
 
 // Check for potential issues before generating
-if (isFileLocked(prismaDllPath)) {
+const prismaClientExists = fs.existsSync(prismaClientPath);
+const dllLocked = isFileLocked(prismaDllPath);
+
+if (dllLocked && prismaClientExists) {
+  console.log('⚠ Warning: Prisma DLL file appears to be locked.');
+  checkForLockingProcesses();
+  console.log('   Skipping Prisma generation (client already exists).');
+  console.log('   Tip: Stop dev server (npm run dev) before building if schema changes were made.\n');
+} else if (dllLocked && !prismaClientExists) {
   console.log('⚠ Warning: Prisma DLL file appears to be locked.');
   checkForLockingProcesses();
   console.log('   Attempting generation anyway...\n');
+} else {
+  console.log('Generating Prisma client...\n');
 }
 
-// Try to generate Prisma client
-try {
-  console.log('Generating Prisma client...');
-  execSync('npx prisma generate', { stdio: 'inherit' });
-  console.log('✓ Prisma client generated successfully\n');
-} catch (error) {
-  // Check if Prisma client already exists
-  if (fs.existsSync(prismaClientPath)) {
-    console.log('⚠ Prisma generation failed, but client already exists. Continuing with build...');
-    if (error.message && error.message.includes('EPERM')) {
-      console.log('   Error: File lock detected. Make sure to stop any running dev servers (npm run dev).\n');
+// Try to generate Prisma client (skip if locked and client exists)
+if (!(dllLocked && prismaClientExists)) {
+  try {
+    execSync('npx prisma generate', { stdio: 'inherit' });
+    console.log('\n✓ Prisma client generated successfully\n');
+  } catch (error) {
+    // Check if Prisma client already exists
+    if (fs.existsSync(prismaClientPath)) {
+      console.log('\n⚠ Prisma generation failed, but client already exists. Continuing with build...');
+      if (error.message && error.message.includes('EPERM')) {
+        console.log('   Error: File lock detected. Make sure to stop any running dev servers (npm run dev).\n');
+      } else {
+        console.log('');
+      }
     } else {
-      console.log('');
+      console.error('\n✗ Prisma generation failed and client does not exist. Build aborted.');
+      if (error.message && error.message.includes('EPERM')) {
+        console.error('   Error: File lock detected. Stop any running Node.js processes and try again.');
+        checkForLockingProcesses();
+      }
+      process.exit(1);
     }
-  } else {
-    console.error('✗ Prisma generation failed and client does not exist. Build aborted.');
-    if (error.message && error.message.includes('EPERM')) {
-      console.error('   Error: File lock detected. Stop any running Node.js processes and try again.');
-      checkForLockingProcesses();
-    }
-    process.exit(1);
   }
 }
 

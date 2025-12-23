@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node scripts/dev.js",
     "kill-port": "node scripts/kill-port.js",
+    "stop-dev": "node scripts/stop-dev.js",
     "build": "node scripts/build.js",
     "start": "node dist/src/server.js",
     "postinstall": "prisma generate",
