@@ -25,6 +25,28 @@ export class PreferencesController {
   }
 
   /**
+   * Get public preferences (phone verification status only)
+   * GET /api/preferences/public
+   */
+  static async getPublicPreferences(_req: Request, res: Response): Promise<void> {
+    try {
+      const preferences = await PreferencesService.getPreferences();
+      // Only return the phone verification setting for public access
+      const publicPreferences = {
+        general: {
+          phoneNumberVerification: preferences.general.phoneNumberVerification,
+        },
+      };
+      logger.info('Public preferences retrieved successfully');
+      ResponseUtil.success(res, publicPreferences, 'Public preferences retrieved successfully', 200);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get public preferences';
+      logger.error('Error getting public preferences', { error: errorMessage });
+      ResponseUtil.error(res, errorMessage, 500);
+    }
+  }
+
+  /**
    * Update preferences
    * PATCH /api/preferences
    */

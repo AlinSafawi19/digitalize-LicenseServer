@@ -47,6 +47,41 @@ const router = Router();
  *       500:
  *         description: Internal server error
  */
+/**
+ * @swagger
+ * /api/preferences/public:
+ *   get:
+ *     summary: Get public preferences (phone verification status)
+ *     description: Retrieves the phone verification preference setting without authentication
+ *     tags: [Preferences]
+ *     responses:
+ *       200:
+ *         description: Public preferences retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Public preferences retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     general:
+ *                       type: object
+ *                       properties:
+ *                         phoneNumberVerification:
+ *                           type: boolean
+ *                           example: true
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/public', PreferencesController.getPublicPreferences);
+
 router.get('/', authenticateAdmin, PreferencesController.getPreferences);
 
 /**
