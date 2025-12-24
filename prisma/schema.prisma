@@ -45,6 +45,9 @@ model License {
   // Performance optimization: Composite indexes for common query patterns
   @@index([status, isFreeTrial]) // For filtering by status and free trial together
   @@index([customerPhone, locationName]) // For duplicate license check (case-insensitive search)
+  // Unique constraint: Prevent duplicate licenses with same phone and location name
+  // Note: Application-level check handles normalization (phone digits only, case-insensitive location)
+  @@unique([customerPhone, locationName], name: "License_customerPhone_locationName_key")
 }
 
 model Activation {

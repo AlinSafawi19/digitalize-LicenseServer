@@ -127,16 +127,17 @@ export class LicenseService {
    */
   static async createLicense(input: CreateLicenseInput): Promise<LicenseWithDetails> {
     // Check for duplicate license with same phone and location name (case-insensitive)
+    // This check prevents creating duplicate licenses regardless of status
     if (input.customerPhone && input.locationName) {
       const normalizedPhone = input.customerPhone.trim().replace(/\D/g, '');
-      const normalizedLocationName = input.locationName.trim();
+      const normalizedLocationName = input.locationName.trim().toLowerCase();
       
       // Use raw query for case-insensitive exact match
+      // Check ALL licenses regardless of status to prevent duplicates
       const existingLicense = await prisma.$queryRaw<Array<{ id: number }>>`
         SELECT id FROM "License"
-        WHERE REPLACE(REPLACE(REPLACE(REPLACE(TRIM("customerPhone"), ' ', ''), '-', ''), '(', ''), ')', '') = ${normalizedPhone}
-          AND TRIM("locationName") = ${normalizedLocationName}
-          AND status IN ('active', 'expired')
+        WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE("customerPhone", '')), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), ' ', '') = ${normalizedPhone}
+          AND LOWER(TRIM(COALESCE("locationName", ''))) = ${normalizedLocationName}
         LIMIT 1
       `;
 
