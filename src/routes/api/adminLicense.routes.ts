@@ -579,6 +579,54 @@ router.delete(
 
 /**
  * @swagger
+ * /api/admin/licenses/{id}/permanent:
+ *   delete:
+ *     summary: Delete license permanently
+ *     description: Permanently delete a license from the database. This action cannot be undone.
+ *     tags: [Admin - Licenses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: License ID
+ *     responses:
+ *       200:
+ *         description: License deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/Success'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: License not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.delete(
+  '/:id/permanent',
+  [
+    param('id')
+      .isInt({ min: 1 })
+      .withMessage('License ID must be a positive integer'),
+  ],
+  validateRequest,
+  AdminLicenseController.deleteLicense
+);
+
+/**
+ * @swagger
  * /api/admin/licenses/{id}/user-limit:
  *   patch:
  *     summary: Increase user limit for a license

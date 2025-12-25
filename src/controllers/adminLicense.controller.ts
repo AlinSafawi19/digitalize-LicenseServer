@@ -253,6 +253,46 @@ export class AdminLicenseController {
   }
 
   /**
+   * Delete license permanently (hard delete)
+   * DELETE /api/admin/licenses/:id/permanent
+   */
+  static async deleteLicense(req: Request, res: Response): Promise<void> {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        ResponseUtil.error(res, 'Invalid license ID', 400);
+        return;
+      }
+
+      // Check if license exists
+      const existingLicense = await LicenseService.getLicenseById(id);
+      if (!existingLicense) {
+        ResponseUtil.notFound(res, 'License not found');
+        return;
+      }
+
+      await LicenseService.deleteLicense(id);
+
+      logger.info('Admin deleted license permanently', {
+        adminId: req.admin?.id,
+        licenseId: id,
+        licenseKey: existingLicense.licenseKey,
+      });
+
+      ResponseUtil.success(
+        res,
+        null,
+        'License deleted permanently',
+        200
+      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete license';
+      logger.error('Error deleting license', { error: errorMessage, adminId: req.admin?.id, licenseId: req.params.id });
+      ResponseUtil.error(res, errorMessage, 500);
+    }
+  }
+
+  /**
    * Increase user limit for a license (manual operation when payment is received)
    * PATCH /api/admin/licenses/:id/user-limit
    */

@@ -1531,9 +1531,27 @@ export class LicenseService {
    * @returns Promise<void>
    */
   static async deleteLicense(id: number): Promise<void> {
+    // Get license info before deletion for cache invalidation
+    const license = await prisma.license.findUnique({
+      where: { id },
+      select: { id: true, licenseKey: true },
+    });
+
+    if (!license) {
+      throw new Error(`License with ID ${id} not found`);
+    }
+
     await prisma.license.delete({
       where: { id },
     });
+
+    // Invalidate cache for this license
+    cacheService.del(CacheKeys.license(license.licenseKey));
+    cacheService.del(CacheKeys.licenseById(id));
+    // Invalidate dashboard stats cache
+    cacheService.del(CacheKeys.dashboardStats());
+    // Invalidate all search result caches as license was deleted
+    cacheService.delPattern('search:*');
   }
 
   /**
