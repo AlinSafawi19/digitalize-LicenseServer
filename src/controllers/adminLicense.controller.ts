@@ -181,6 +181,14 @@ export class AdminLicenseController {
         annualPrice: req.body.annualPrice !== undefined && req.body.annualPrice !== null
           ? parseFloat(String(req.body.annualPrice))
           : undefined,
+        pricePerUser: req.body.pricePerUser !== undefined && req.body.pricePerUser !== null
+          ? parseFloat(String(req.body.pricePerUser))
+          : undefined,
+        isFreeTrial: req.body.isFreeTrial !== undefined
+          ? (req.body.isFreeTrial === true || req.body.isFreeTrial === 'true')
+          : undefined,
+        startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
+        endDate: req.body.endDate ? new Date(req.body.endDate) : undefined,
       };
 
       const license = await LicenseService.updateLicenseById(id, input);

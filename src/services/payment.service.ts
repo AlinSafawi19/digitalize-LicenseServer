@@ -304,8 +304,8 @@ export class PaymentService {
     }
 
     // Validate amount
-    if (input.amount <= 0) {
-      throw new Error('Payment amount must be greater than 0');
+    if (input.amount < 0) {
+      throw new Error('Payment amount must be 0 or greater');
     }
 
     // Determine payment type

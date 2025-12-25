@@ -298,8 +298,8 @@ router.get(
  *                 description: License ID
  *               amount:
  *                 type: number
- *                 minimum: 0.01
- *                 description: Payment amount
+ *                 minimum: 0
+ *                 description: Payment amount (can be 0)
  *               paymentDate:
  *                 type: string
  *                 format: date-time
@@ -339,8 +339,8 @@ router.post(
       .isInt({ min: 1 })
       .withMessage('License ID must be a positive integer'),
     body('amount')
-      .isFloat({ min: 0.01 })
-      .withMessage('Amount must be a positive number'),
+      .isFloat({ min: 0 })
+      .withMessage('Amount must be 0 or greater'),
     body('paymentDate')
       .optional()
       .isISO8601()

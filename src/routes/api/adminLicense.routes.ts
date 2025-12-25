@@ -408,6 +408,29 @@ router.post(
  *               locationAddress:
  *                 type: string
  *                 example: 123 Main Street, City, Country
+ *               initialPrice:
+ *                 type: number
+ *                 minimum: 0
+ *                 example: 350.0
+ *               annualPrice:
+ *                 type: number
+ *                 minimum: 0
+ *                 example: 50.0
+ *               pricePerUser:
+ *                 type: number
+ *                 minimum: 0
+ *                 example: 25.0
+ *               isFreeTrial:
+ *                 type: boolean
+ *                 example: false
+ *               startDate:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2024-01-01T00:00:00.000Z"
+ *               endDate:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2025-01-01T23:59:59.999Z"
  *     responses:
  *       200:
  *         description: License updated successfully
@@ -481,6 +504,22 @@ router.put(
       .optional()
       .isFloat({ min: 0 })
       .withMessage('Annual price must be a positive number'),
+    body('pricePerUser')
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage('Price per user must be a positive number'),
+    body('isFreeTrial')
+      .optional()
+      .isBoolean()
+      .withMessage('isFreeTrial must be a boolean'),
+    body('startDate')
+      .optional()
+      .isISO8601()
+      .withMessage('Start date must be a valid ISO 8601 date string'),
+    body('endDate')
+      .optional()
+      .isISO8601()
+      .withMessage('End date must be a valid ISO 8601 date string'),
   ],
   validateRequest,
   AdminLicenseController.updateLicense

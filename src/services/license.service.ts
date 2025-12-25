@@ -32,6 +32,9 @@ export interface UpdateLicenseInput {
   initialPrice?: number;
   annualPrice?: number;
   pricePerUser?: number;
+  isFreeTrial?: boolean;
+  startDate?: string | Date;
+  endDate?: string | Date;
 }
 
 export interface LicenseWithDetails {
@@ -1266,6 +1269,28 @@ export class LicenseService {
     if (input.locationAddress !== undefined) updateData.locationAddress = input.locationAddress;
     if (input.initialPrice !== undefined && input.initialPrice !== null) {
       updateData.initialPrice = new Decimal(input.initialPrice);
+    }
+    if (input.pricePerUser !== undefined && input.pricePerUser !== null) {
+      updateData.pricePerUser = new Decimal(input.pricePerUser);
+    }
+    if (input.isFreeTrial !== undefined) {
+      updateData.isFreeTrial = input.isFreeTrial;
+    }
+    if (input.startDate !== undefined && input.startDate !== null) {
+      const startDate = input.startDate instanceof Date ? input.startDate : new Date(input.startDate);
+      // Ensure start date is at start of day in UTC (00:00:00.000 UTC)
+      // The frontend sends dates converted from Beirut timezone to UTC,
+      // so we normalize to start of day in UTC to ensure consistency
+      startDate.setUTCHours(0, 0, 0, 0);
+      updateData.startDate = startDate;
+    }
+    if (input.endDate !== undefined && input.endDate !== null) {
+      const endDate = input.endDate instanceof Date ? input.endDate : new Date(input.endDate);
+      // Set to end of day in UTC (23:59:59.999 UTC) to ensure full day is counted
+      // The frontend sends dates converted from Beirut timezone to UTC,
+      // so we normalize to end of day in UTC to ensure consistency
+      endDate.setUTCHours(23, 59, 59, 999);
+      updateData.endDate = endDate;
     }
 
     // Update license and optionally update active subscription's annualFee if annualPrice is provided

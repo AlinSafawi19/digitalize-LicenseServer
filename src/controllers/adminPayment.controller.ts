@@ -178,8 +178,8 @@ export class AdminPaymentController {
         return;
       }
 
-      if (!amount || typeof amount !== 'number' || amount <= 0) {
-        ResponseUtil.error(res, 'Amount is required and must be a positive number', 400);
+      if (amount === undefined || amount === null || typeof amount !== 'number' || amount < 0) {
+        ResponseUtil.error(res, 'Amount is required and must be 0 or greater', 400);
         return;
       }
 
