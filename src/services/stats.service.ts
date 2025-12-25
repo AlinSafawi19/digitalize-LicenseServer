@@ -81,16 +81,17 @@ export class StatsService {
     // Get end of today in Beirut timezone, converted to UTC for database query
     const endOfTodayUTC = nowBeirut.clone().endOf('day').utc().toDate();
     
-    // For other date calculations, use UTC now
-    const now = new Date();
+    // Get current month start and end in Beirut timezone
+    // Start of current month in Beirut timezone, converted to UTC for database query
+    const currentMonthStartUTC = nowBeirut.clone().startOf('month').utc().toDate();
+    // End of current month in Beirut timezone, converted to UTC for database query
+    const currentMonthEndUTC = nowBeirut.clone().endOf('month').utc().toDate();
 
-    // Get current month start and end
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-
-    // Get current year start and end
-    const currentYearStart = new Date(now.getFullYear(), 0, 1);
-    const currentYearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    // Get current year start and end in Beirut timezone
+    // Start of current year in Beirut timezone, converted to UTC for database query
+    const currentYearStartUTC = nowBeirut.clone().startOf('year').utc().toDate();
+    // End of current year in Beirut timezone, converted to UTC for database query
+    const currentYearEndUTC = nowBeirut.clone().endOf('year').utc().toDate();
 
     // Performance optimization: Combine 22 queries into 5 aggregated SQL queries
     // This reduces database round-trips by 77% and improves performance significantly
@@ -142,12 +143,12 @@ export class StatsService {
         SELECT 
           COALESCE(SUM(amount), 0)::text as total,
           COALESCE(SUM(amount) FILTER (
-            WHERE "paymentDate" >= ${currentMonthStart} 
-            AND "paymentDate" <= ${currentMonthEnd}
+            WHERE "paymentDate" >= ${currentMonthStartUTC} 
+            AND "paymentDate" <= ${currentMonthEndUTC}
           ), 0)::text as monthly,
           COALESCE(SUM(amount) FILTER (
-            WHERE "paymentDate" >= ${currentYearStart} 
-            AND "paymentDate" <= ${currentYearEnd}
+            WHERE "paymentDate" >= ${currentYearStartUTC} 
+            AND "paymentDate" <= ${currentYearEndUTC}
           ), 0)::text as annual,
           COALESCE(SUM(amount) FILTER (WHERE "isAnnualSubscription" = false), 0)::text as initial,
           COALESCE(SUM(amount) FILTER (WHERE "isAnnualSubscription" = true), 0)::text as subscription
